@@ -2,904 +2,1038 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pendulum Dynamics & Models</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Pendulum Dynamics & Models | AFEED</title>
+    <meta name="description" content="AFEED Physics Simulation - Pendulum Dynamics">
+    
+    <!-- Tailwind CSS with Dark Mode Class enabled -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght=400;500;600&family=JetBrains+Mono:wght=400;500;700&display=swap');
-        
-        body { 
-            font-family: 'Inter', sans-serif; 
-            background-color: #0f172a; 
-            color: #e2e8f0; 
-            overscroll-behavior: none; /* Prevent pull-to-refresh on mobile */
-        }
-        .mono { font-family: 'JetBrains Mono', monospace; }
-        
-        /* Instrument sliders */
-        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
-            background: #38bdf8; cursor: pointer; margin-top: -6px; border: 2px solid #0f172a;
-            box-shadow: 0 0 5px rgba(56, 189, 248, 0.5);
-        }
-        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #334155; border-radius: 2px; }
-        input[type=range]:focus { outline: none; }
-        
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #0f172a; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-        
-        .checkbox-container input { accent-color: #38bdf8; width: 1.1rem; height: 1.1rem; cursor: pointer; }
-        .panel { background-color: #1e293b; border: 1px solid #334155; }
-        .btn { transition: all 0.2s; font-weight: 500; }
-        .btn:active { transform: scale(0.95); }
-
-        /* Status indicators */
-        .status-valid { color: #34d399; }
-        .status-warn { color: #fbbf24; }
-        .status-danger { color: #f87171; }
-        
-        /* Ensure canvases don't create unexpected scrollbars */
-        canvas { display: block; touch-action: none; }
-    </style>
-</head>
-<body class="h-[100dvh] w-full flex flex-col lg:flex-row overflow-hidden selection:bg-sky-900 selection:text-white relative">
-
-    <!-- Mobile Floating Action Button (Eye Icon) - Lifted to float perfectly above the dividing line of the graphs -->
-    <button id="btnToggleControls" class="lg:hidden fixed bottom-[37vh] right-6 z-[60] bg-sky-500 hover:bg-sky-400 text-white p-4 rounded-full shadow-[0_0_20px_rgba(56,189,248,0.4)] backdrop-blur transition-transform active:scale-90" title="Toggle Controls">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
-            <circle cx="12" cy="12" r="3"></circle>
-        </svg>
-    </button>
-
-    <!-- Mobile Backdrop -->
-    <div id="mobileBackdrop" class="fixed inset-0 bg-slate-950/80 z-[45] hidden backdrop-blur-sm transition-opacity opacity-0 lg:hidden"></div>
-
-    <!-- Left Panel: Pedagogy & Controls -->
-    <!-- On mobile: Fixed overlay, slides from left. On desktop: Standard flex block -->
-    <div id="controlsPanel" class="fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] transform -translate-x-full transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 lg:w-80 lg:h-full flex-shrink-0 panel flex flex-col overflow-y-auto shadow-2xl lg:shadow-none border-r border-slate-700">
-        
-        <div class="p-4 border-b border-slate-700 bg-slate-800/80 flex justify-between items-center sticky top-0 z-10 backdrop-blur-md">
-            <div>
-                <h1 class="text-xl font-semibold text-sky-400 tracking-wide leading-tight">PENDULUM</h1>
-                <p class="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">Dynamics Engine</p>
-            </div>
-            <div class="flex gap-2">
-                <!-- Fullscreen Button -->
-                <button id="btnFullscreen" class="text-slate-400 hover:text-white transition p-2 rounded hover:bg-slate-700" title="Toggle Fullscreen">
-                    <svg id="iconFsEnter" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                    </svg>
-                    <svg id="iconFsExit" class="hidden" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 21m0 0h6m-6 0v-6m15-6l-6 6m0 0h-6m6 0v6" />
-                    </svg>
-                </button>
-                <!-- Mobile Close Button -->
-                <button id="btnCloseControls" class="lg:hidden text-slate-400 hover:text-white transition p-2 rounded hover:bg-slate-700">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-        </div>
-
-        <!-- Perspective Toggle Layer -->
-        <div class="p-4 border-b border-slate-700 bg-[#0f172a]/50">
-            <h2 class="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Visual Perspective</h2>
-            
-            <button id="btnPerspective" class="w-full bg-slate-800 border border-slate-600 hover:bg-slate-700 text-purple-400 text-sm py-2 rounded btn font-semibold tracking-wide shadow-inner">
-                Perspective: Exam Approx.
-            </button>
-            
-            <label class="flex items-center space-x-3 checkbox-container mt-3 cursor-pointer group">
-                <input type="checkbox" id="chkGhost" checked>
-                <span id="lblGhostText" class="text-xs text-slate-300 group-hover:text-white transition-colors">Show Physical Reality (Ghost)</span>
-            </label>
-
-            <div id="modelFeedback" class="mt-3 text-xs font-medium status-valid bg-slate-900/50 p-2 rounded border border-slate-800 text-center">
-                Approximation Valid (Small Angle)
-            </div>
-        </div>
-        
-        <!-- Teaching Presets -->
-        <div class="p-4 border-b border-slate-700 space-y-2">
-            <h2 class="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Guided Observation</h2>
-            <div class="grid grid-cols-2 gap-2">
-                <button onclick="setMode('shm')" class="btn bg-slate-700 hover:bg-slate-600 text-xs py-2 rounded" title="Observe formula divergence">Period Diverge</button>
-                <button onclick="setMode('energy')" class="btn bg-slate-700 hover:bg-slate-600 text-xs py-2 rounded" title="Observe energy conservation">Energy Exc.</button>
-                <button onclick="setMode('kinematics')" class="btn bg-slate-700 hover:bg-slate-600 text-xs py-2 rounded" title="Observe forces & acceleration">Kinematics</button>
-                <button onclick="setMode('damped')" class="btn bg-slate-700 hover:bg-slate-600 text-xs py-2 rounded" title="Observe spiral attractor">Damped Phase</button>
-            </div>
-        </div>
-
-        <div class="p-4 space-y-6 flex-grow pb-10 lg:pb-4">
-            <!-- Playback -->
-            <div class="flex space-x-2">
-                <button id="btnStart" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded btn text-sm font-bold">Play</button>
-                <button id="btnPause" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white py-2 rounded btn text-sm font-bold">Pause</button>
-                <button id="btnReset" class="flex-1 bg-rose-600 hover:bg-rose-500 text-white py-2 rounded btn text-sm font-bold">Reset</button>
-            </div>
-
-            <!-- Parameters -->
-            <div class="space-y-4">
-                <h2 class="text-[10px] font-bold uppercase tracking-widest text-slate-500">System Parameters</h2>
-                
-                <div>
-                    <div class="flex justify-between mb-1"><label class="text-xs text-slate-300">Length (L)</label><span id="valLength" class="text-sky-300 text-xs mono">20.0 m</span></div>
-                    <input type="range" id="sliderLength" min="5" max="30" step="0.1" value="20">
-                </div>
-                <div>
-                    <div class="flex justify-between mb-1"><label class="text-xs text-slate-300">Initial Angle (&theta;&sub0;)</label><span id="valAngle" class="text-sky-300 text-xs mono">15&deg;</span></div>
-                    <input type="range" id="sliderAngle" min="1" max="150" step="1" value="15">
-                </div>
-                <div>
-                    <div class="flex justify-between mb-1"><label class="text-xs text-slate-300">Damping (c)</label><span id="valDamping" class="text-sky-300 text-xs mono">0.00</span></div>
-                    <input type="range" id="sliderDamping" min="0" max="0.5" step="0.01" value="0">
-                </div>
-                <div>
-                    <div class="flex justify-between mb-1"><label class="text-xs text-slate-300">Time Scale</label><span id="valSpeed" class="text-slate-400 text-xs mono">1.0x</span></div>
-                    <input type="range" id="sliderSpeed" min="0.1" max="3" step="0.1" value="1">
-                </div>
-            </div>
-
-            <!-- Visual Overlay -->
-            <div class="space-y-3 pt-4 border-t border-slate-700">
-                <h2 class="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Vectors & Overlay</h2>
-                <label class="flex items-center space-x-3 checkbox-container"><input type="checkbox" id="chkBasis"><span class="text-xs text-slate-300">Radial/Tangential Basis</span></label>
-                <label class="flex items-center space-x-3 checkbox-container"><input type="checkbox" id="chkTrail" checked><span class="text-xs text-slate-300">Trajectory Memory</span></label>
-                
-                <div class="pt-2 space-y-2">
-                    <label class="flex items-center space-x-3 checkbox-container"><input type="checkbox" id="chkForces" checked><span class="text-xs text-slate-300 flex-grow">Forces (mg, T)</span> <span class="text-[10px] mono text-yellow-400">--</span></label>
-                    <label class="flex items-center space-x-3 checkbox-container"><input type="checkbox" id="chkNetForce"><span class="text-xs text-slate-300 flex-grow">Net Force (&Sigma;F)</span> <span class="text-[10px] mono text-rose-400 font-bold">━━</span></label>
-                    <label class="flex items-center space-x-3 checkbox-container"><input type="checkbox" id="chkAccel"><span class="text-xs text-slate-300 flex-grow">Acceleration (a)</span> <span class="text-[10px] mono text-blue-400">&middot;&middot;</span></label>
-                    <label class="flex items-center space-x-3 checkbox-container"><input type="checkbox" id="chkVel"><span class="text-xs text-slate-300 flex-grow">Velocity (v)</span> <span class="text-[10px] mono text-fuchsia-400">&middot;-&middot;</span></label>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Center: Simulation View -->
-    <div class="flex-grow relative flex flex-col z-0 shadow-inner bg-[#0b1121] min-h-[45vh] lg:min-h-0">
-        <div class="absolute inset-0 flex justify-center items-center overflow-hidden" id="mainCanvasContainer">
-             <canvas id="simCanvas" class="w-full h-full absolute inset-0"></canvas>
-        </div>
-        
-        <!-- Live Scientific Diagnostics -->
-        <div class="absolute top-2 left-2 md:top-4 md:left-4 panel p-2 md:p-3 rounded shadow-lg pointer-events-none opacity-90 flex gap-2 md:gap-4 scale-90 md:scale-100 origin-top-left z-10 backdrop-blur-sm bg-slate-900/80">
-            <!-- Kinematics -->
-            <div>
-                <h3 class="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1 border-b border-slate-700 pb-1">State Vector</h3>
-                <table class="text-[10px] md:text-[11px] mono text-slate-300 w-24 md:w-32">
-                    <tr><td class="py-0.5">&theta;:</td><td class="text-right text-white" id="hudTheta">0.0&deg;</td></tr>
-                    <tr><td class="py-0.5">&omega;:</td><td class="text-right text-white" id="hudOmega">0.00</td></tr>
-                    <tr><td class="py-0.5">&alpha;:</td><td class="text-right text-white" id="hudAlpha">0.00</td></tr>
-                </table>
-            </div>
-            <!-- Period/Errors -->
-            <div class="border-l border-slate-700 pl-2 md:pl-4">
-                <h3 class="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1 border-b border-slate-700 pb-1">Diagnostics</h3>
-                <table class="text-[10px] md:text-[11px] mono text-slate-300 w-32 md:w-40">
-                    <tr><td class="py-0.5">T(ideal):</td><td class="text-right text-purple-300" id="hudTth">0.00 s</td></tr>
-                    <tr><td class="py-0.5">T(exp):</td><td class="text-right text-emerald-300" id="hudTexp">-- s</td></tr>
-                    <tr><td class="py-0.5 pt-1 text-[8px] md:text-[9px] text-slate-500">Eq. Err:</td><td class="text-right text-amber-300 text-[9px] md:text-[10px] pt-1" id="hudErrMath">0.00%</td></tr>
-                    <tr><td class="py-0.5 text-[8px] md:text-[9px] text-slate-500">RK4 Drift:</td><td class="text-right text-slate-400 text-[9px] md:text-[10px]" id="hudErrNum">0.000%</td></tr>
-                </table>
-            </div>
-        </div>
-
-        <!-- Extremum Flash Text -->
-        <div id="extremumCallout" class="absolute top-1/4 right-4 md:right-1/4 text-sky-300 font-bold tracking-widest uppercase text-xs md:text-sm opacity-0 transition-opacity duration-300 pointer-events-none drop-shadow-[0_0_8px_rgba(56,189,248,0.8)] z-10">
-            v = 0 | a = max
-        </div>
-    </div>
-
-    <!-- Right/Bottom Panel: Phase Graphs -->
-    <!-- Mobile: flex-row to prevent stretching! pb-8 adds a physical safe zone protecting the graph from bezel & gesture indicators -->
-    <div class="w-full h-[35vh] lg:h-full lg:w-96 flex-shrink-0 flex flex-row lg:flex-col z-10 border-t lg:border-t-0 lg:border-l border-slate-700 bg-[#0b1120] pb-8 lg:pb-0 relative">
-        
-        <!-- Phase Space Graph (Left on Mobile, Top on Desktop) -->
-        <div class="flex-1 flex flex-col border-r lg:border-r-0 lg:border-b border-slate-700 relative p-1 md:p-2 pt-7 md:pt-8 min-h-0 min-w-0">
-            <div class="absolute top-1 left-2 z-10 text-[9px] md:text-xs font-semibold text-slate-300 bg-[#0b1120]/80 px-1 rounded">Phase Space (&theta; vs &omega;)</div>
-            <div class="flex-grow relative overflow-hidden rounded" id="phaseCanvasContainer">
-                <canvas id="phaseCanvas" class="absolute inset-0 w-full h-full"></canvas>
-            </div>
-        </div>
-
-        <!-- Energy Time-History (Right on Mobile, Bottom on Desktop) -->
-        <div class="flex-1 flex flex-col relative p-1 md:p-2 pt-7 md:pt-8 min-h-0 min-w-0">
-            <div class="absolute top-1 left-2 z-10 flex flex-wrap gap-1 items-center bg-[#0b1120]/80 px-1 rounded">
-                <span class="text-[9px] md:text-xs font-semibold text-slate-300 pr-1">Energy vs Time</span>
-                <div class="flex space-x-1 md:space-x-2">
-                    <span class="text-sky-400 text-[8px] md:text-[10px] mono flex items-center">&bull; PE</span>
-                    <span class="text-fuchsia-500 text-[8px] md:text-[10px] mono flex items-center">&bull; KE</span>
-                    <span class="text-slate-400 text-[8px] md:text-[10px] mono flex items-center">&bull; TE</span>
-                </div>
-            </div>
-            <div class="flex-grow relative overflow-hidden rounded" id="energyCanvasContainer">
-                <canvas id="energyCanvas" class="absolute inset-0 w-full h-full"></canvas>
-            </div>
-        </div>
-
-    </div>
-
     <script>
-        // --- Core Physics System ---
-        const P = { L: 20, g: 9.8, maxAngle: 15, c: 0, m: 1 };
-
-        const state = {
-            t: 0,
-            theta_ex: 0, omega_ex: 0, // Exact nonlinear
-            theta_id: 0, omega_id: 0, // Idealized SHM
-            isRunning: false,
-            lastTimestamp: 0,
-            
-            // Diagnostics
-            initialTE: 0,
-            lastTheta_ex: 0, lastTheta_id: 0,
-            lastCrossTime_ex: -1, lastCrossTime_id: -1,
-            period_ex: null, period_id: null,
-            extremumFlash: 0 
-        };
-
-        // --- The new rendering abstraction ---
-        const V = {
-            renderPerspective: 'ideal', // 'ideal' (Exam) or 'real' (Physical Reality)
-            showGhost: true,            // Toggle the secondary model
-            showForces: true, showNetForce: false, showAccel: false, showVel: false,
-            showTrail: true, showBasis: false,
-            animSpeed: 1, pixelsPerMeter: 15, pivotX: 0, pivotY: 0
-        };
-
-        // History
-        const histLen = 400;
-        let timeHist = []; let phaseHistEx = []; let phaseHistId = []; let trailHist = [];
-        let maxTE = 1; let maxThPhase = 1; let maxOmPhase = 1;
-
-        // --- DOM Bindings ---
-        const C = { 
-            main: document.getElementById('simCanvas'), 
-            phase: document.getElementById('phaseCanvas'), 
-            energy: document.getElementById('energyCanvas') 
-        };
-        const ctx = { 
-            main: C.main.getContext('2d', {alpha: false}), 
-            phase: C.phase.getContext('2d', {alpha: false}), 
-            energy: C.energy.getContext('2d', {alpha: false}) 
-        };
-        const Containers = {
-            main: document.getElementById('mainCanvasContainer'),
-            phase: document.getElementById('phaseCanvasContainer'),
-            energy: document.getElementById('energyCanvasContainer')
-        };
-
-        const UI = {
-            btnFullscreen: document.getElementById('btnFullscreen'),
-            btnPersp: document.getElementById('btnPerspective'),
-            lblGhost: document.getElementById('lblGhostText'), chkGhost: document.getElementById('chkGhost'),
-            feedback: document.getElementById('modelFeedback'),
-            len: document.getElementById('sliderLength'), valLen: document.getElementById('valLength'),
-            ang: document.getElementById('sliderAngle'), valAng: document.getElementById('valAngle'),
-            dmp: document.getElementById('sliderDamping'), valDmp: document.getElementById('valDamping'),
-            spd: document.getElementById('sliderSpeed'), valSpd: document.getElementById('valSpeed'),
-            callout: document.getElementById('extremumCallout'),
-            chkBas: document.getElementById('chkBasis'), chkTrl: document.getElementById('chkTrail'),
-            chkFor: document.getElementById('chkForces'), chkNet: document.getElementById('chkNetForce'),
-            chkAcc: document.getElementById('chkAccel'), chkVel: document.getElementById('chkVel'),
-            hTh: document.getElementById('hudTheta'), hOm: document.getElementById('hudOmega'), hAl: document.getElementById('hudAlpha'),
-            hTth: document.getElementById('hudTth'), hTexp: document.getElementById('hudTexp'),
-            hErrM: document.getElementById('hudErrMath'), hErrN: document.getElementById('hudErrNum'),
-            
-            // Mobile Specific
-            btnToggleControls: document.getElementById('btnToggleControls'),
-            btnCloseControls: document.getElementById('btnCloseControls'),
-            controlsPanel: document.getElementById('controlsPanel'),
-            mobileBackdrop: document.getElementById('mobileBackdrop')
-        };
-
-        // --- Initialization ---
-        function init() {
-            setupMobileControls();
-            setupFullscreen();
-            setupObservers();
-
-            // Perspective Toggle Logic
-            UI.btnPersp.addEventListener('click', () => {
-                if (V.renderPerspective === 'ideal') {
-                    V.renderPerspective = 'real';
-                    UI.btnPersp.textContent = 'Perspective: Physical Reality';
-                    UI.btnPersp.classList.replace('text-purple-400', 'text-sky-400');
-                    UI.lblGhost.textContent = 'Show Exam Approx. (Ghost)';
-                } else {
-                    V.renderPerspective === 'ideal';
-                    UI.btnPersp.textContent = 'Perspective: Exam Approx.';
-                    UI.btnPersp.classList.replace('text-sky-400', 'text-purple-400');
-                    UI.lblGhost.textContent = 'Show Physical Reality (Ghost)';
-                }
-                updateHUD();
-                if(!state.isRunning) drawAll();
-            });
-
-            UI.chkGhost.addEventListener('change', e => {
-                V.showGhost = e.target.checked;
-                if(!state.isRunning) drawAll();
-            });
-
-            const bindSlider = (el, valEl, key, suffix, reset = true) => {
-                el.addEventListener('input', e => {
-                    let val = parseFloat(e.target.value);
-                    P[key] = val; valEl.innerHTML = `${val.toFixed(key==='c'?2:1)}${suffix}`;
-                    if(key === 'maxAngle') checkApproximationValidity(val);
-                    if(reset) resetSim();
-                });
-            };
-            
-            bindSlider(UI.len, UI.valLen, 'L', ' m');
-            bindSlider(UI.ang, UI.valAng, 'maxAngle', '&deg;');
-            bindSlider(UI.dmp, UI.valDmp, 'c', '', false);
-            
-            UI.spd.addEventListener('input', e => { V.animSpeed = parseFloat(e.target.value); UI.valSpd.textContent = `${V.animSpeed.toFixed(1)}x`; });
-
-            const bindCheck = (el, key) => { el.addEventListener('change', e => { V[key] = e.target.checked; if(!state.isRunning) drawAll(); }); };
-            bindCheck(UI.chkBas, 'showBasis'); bindCheck(UI.chkTrl, 'showTrail');
-            bindCheck(UI.chkFor, 'showForces'); bindCheck(UI.chkNet, 'showNetForce'); bindCheck(UI.chkAcc, 'showAccel'); bindCheck(UI.chkVel, 'showVel');
-
-            document.getElementById('btnStart').addEventListener('click', () => {
-                if (!state.isRunning) { state.isRunning = true; state.lastTimestamp = performance.now(); requestAnimationFrame(gameLoop); }
-            });
-            document.getElementById('btnPause').addEventListener('click', () => state.isRunning = false);
-            document.getElementById('btnReset').addEventListener('click', resetSim);
-
-            checkApproximationValidity(P.maxAngle);
-            resetSim(); 
-            resizeCanvases();
-            requestAnimationFrame(gameLoop);
-        }
-
-        // --- UI & Viewport Management ---
-        function setupMobileControls() {
-            const toggleMenu = () => {
-                const isClosed = UI.controlsPanel.classList.contains('-translate-x-full');
-                if (isClosed) {
-                    UI.controlsPanel.classList.remove('-translate-x-full');
-                    UI.mobileBackdrop.classList.remove('hidden');
-                    setTimeout(() => UI.mobileBackdrop.classList.remove('opacity-0'), 10);
-                } else {
-                    UI.controlsPanel.classList.add('-translate-x-full');
-                    UI.mobileBackdrop.classList.add('opacity-0');
-                    setTimeout(() => UI.mobileBackdrop.classList.add('hidden'), 300);
-                }
-            };
-            
-            UI.btnToggleControls.addEventListener('click', toggleMenu);
-            UI.btnCloseControls.addEventListener('click', toggleMenu);
-            UI.mobileBackdrop.addEventListener('click', toggleMenu);
-        }
-
-        function setupFullscreen() {
-            const iconEnter = document.getElementById('iconFsEnter');
-            const iconExit = document.getElementById('iconFsExit');
-
-            UI.btnFullscreen.addEventListener('click', () => {
-                if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-                    const docEl = document.documentElement;
-                    if (docEl.requestFullscreen) docEl.requestFullscreen();
-                    else if (docEl.webkitRequestFullscreen) docEl.webkitRequestFullscreen();
-                } else {
-                    if (document.exitFullscreen) document.exitFullscreen();
-                    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-                }
-            });
-
-            const updateFullscreenIcon = () => {
-                const isFs = document.fullscreenElement || document.webkitFullscreenElement;
-                if (isFs) {
-                    iconEnter.classList.add('hidden');
-                    iconExit.classList.remove('hidden');
-                } else {
-                    iconEnter.classList.remove('hidden');
-                    iconExit.classList.add('hidden');
-                }
-            };
-            document.addEventListener('fullscreenchange', updateFullscreenIcon);
-            document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
-        }
-
-        function setupObservers() {
-            const resizeObserver = new ResizeObserver(entries => {
-                let requiresRedraw = false;
-                const dpr = window.devicePixelRatio || 1;
-                
-                for (let entry of entries) {
-                    const target = entry.target;
-                    let canvas, context;
-                    if (target === Containers.main) { canvas = C.main; context = ctx.main; }
-                    else if (target === Containers.phase) { canvas = C.phase; context = ctx.phase; }
-                    else if (target === Containers.energy) { canvas = C.energy; context = ctx.energy; }
-                    
-                    if (canvas && context) {
-                        const rect = target.getBoundingClientRect();
-                        const newW = Math.floor(rect.width * dpr);
-                        const newH = Math.floor(rect.height * dpr);
-                        
-                        if (canvas.width !== newW || canvas.height !== newH) {
-                            canvas.width = newW;
-                            canvas.height = newH;
-                            context.setTransform(1, 0, 0, 1, 0, 0); 
-                            context.scale(dpr, dpr);
-                            requiresRedraw = true;
-                            
-                            if (target === Containers.main) {
-                                V.pivotX = rect.width / 2;
-                                V.pivotY = rect.height * 0.25;
-                                let calcScale = (rect.height * 0.55) / 30;
-                                V.pixelsPerMeter = Math.max(calcScale, 3); 
-                            }
-                        }
-                    }
-                }
-                
-                if (requiresRedraw) drawAll();
-            });
-
-            resizeObserver.observe(Containers.main);
-            resizeObserver.observe(Containers.phase);
-            resizeObserver.observe(Containers.energy);
-        }
-        
-        function resizeCanvases() {
-            const dpr = window.devicePixelRatio || 1;
-            [
-                {c: C.main, t: Containers.main, cx: ctx.main},
-                {c: C.phase, t: Containers.phase, cx: ctx.phase},
-                {c: C.energy, t: Containers.energy, cx: ctx.energy}
-            ].forEach(({c, t, cx}) => {
-                const rect = t.getBoundingClientRect();
-                c.width = rect.width * dpr;
-                c.height = rect.height * dpr;
-                cx.setTransform(1, 0, 0, 1, 0, 0);
-                cx.scale(dpr, dpr);
-            });
-            
-            const mRect = Containers.main.getBoundingClientRect();
-            V.pivotX = mRect.width / 2; V.pivotY = mRect.height * 0.25;
-            V.pixelsPerMeter = Math.max((mRect.height * 0.55) / 30, 3); 
-        }
-
-        function checkApproximationValidity(angle) {
-            const f = UI.feedback;
-            f.classList.remove('status-valid', 'status-warn', 'status-danger');
-            if (angle <= 15) {
-                f.textContent = "Approximation Valid (Small Angle)";
-                f.classList.add('status-valid');
-            } else if (angle <= 45) {
-                f.textContent = "Minor Deviation Emerging";
-                f.classList.add('status-warn');
-            } else if (angle <= 90) {
-                f.textContent = "Significant Deviation (Nonlinear)";
-                f.classList.add('status-warn');
-            } else {
-                f.textContent = "Model Breakdown (Near-Inverted)";
-                f.classList.add('status-danger');
-            }
-        }
-
-        // --- Pedagogical Presets ---
-        function setMode(modeType) {
-            state.isRunning = false;
-            P.c = 0; UI.dmp.value = 0; UI.valDmp.textContent = "0.00";
-            V.showBasis = false; V.showTrail = true;
-            V.showForces = false; V.showNetForce = false; V.showAccel = false; V.showVel = false;
-
-            if (modeType === 'shm') {
-                if(V.renderPerspective !== 'ideal') UI.btnPersp.click(); 
-                V.showGhost = true;
-                P.maxAngle = 90; UI.ang.value = 90; UI.valAng.innerHTML = "90&deg;";
-            } else if (modeType === 'energy') {
-                if(V.renderPerspective !== 'real') UI.btnPersp.click(); 
-                V.showGhost = false;
-                P.maxAngle = 70; UI.ang.value = 70; UI.valAng.innerHTML = "70&deg;";
-                V.showVel = true;
-            } else if (modeType === 'kinematics') {
-                if(V.renderPerspective !== 'ideal') UI.btnPersp.click();
-                V.showGhost = false;
-                P.maxAngle = 30; UI.ang.value = 30; UI.valAng.innerHTML = "30&deg;";
-                V.showForces = true; V.showNetForce = true; V.showAccel = true; V.showBasis = true;
-            } else if (modeType === 'damped') {
-                if(V.renderPerspective !== 'real') UI.btnPersp.click();
-                V.showGhost = false;
-                P.c = 0.2; UI.dmp.value = 0.2; UI.valDmp.textContent = "0.20";
-                P.maxAngle = 120; UI.ang.value = 120; UI.valAng.innerHTML = "120&deg;";
-            }
-            
-            checkApproximationValidity(P.maxAngle);
-            UI.chkGhost.checked = V.showGhost;
-            UI.chkBas.checked = V.showBasis; UI.chkTrl.checked = V.showTrail;
-            UI.chkFor.checked = V.showForces; UI.chkNet.checked = V.showNetForce; 
-            UI.chkAcc.checked = V.showAccel; UI.chkVel.checked = V.showVel;
-            resetSim();
-            
-            if (window.innerWidth < 1024 && !UI.controlsPanel.classList.contains('-translate-x-full')) {
-                 UI.btnToggleControls.click();
-            }
-        }
-
-        function resetSim() {
-            state.isRunning = false; state.t = 0;
-            const initTh = P.maxAngle * (Math.PI / 180);
-            state.theta_ex = initTh; state.omega_ex = 0;
-            state.theta_id = initTh; state.omega_id = 0;
-            
-            state.lastTheta_ex = initTh; state.lastTheta_id = initTh;
-            state.lastCrossTime_ex = -1; state.lastCrossTime_id = -1;
-            state.period_ex = null; state.period_id = null;
-            state.extremumFlash = 0; UI.callout.style.opacity = 0;
-
-            timeHist = []; phaseHistEx = []; phaseHistId = []; trailHist = [];
-            
-            state.initialTE = P.m * P.g * P.L * (1 - Math.cos(initTh));
-            maxTE = state.initialTE * 1.1 || 1;
-            maxThPhase = initTh * 1.2 || 0.1;
-            maxOmPhase = Math.sqrt(2 * P.g / P.L * (1 - Math.cos(initTh))) * 1.2 || 0.1;
-
-            updateHUD(); drawAll();
-        }
-
-        // --- Numerical Integrator (RK4) ---
-        const derivEx = y => [ y[1], -(P.g / P.L) * Math.sin(y[0]) - P.c * y[1] ];
-        const derivId = y => [ y[1], -(P.g / P.L) * y[0] - P.c * y[1] ];
-
-        function stepRK4(y, dt, fn) {
-            let k1 = fn(y);
-            let k2 = fn([y[0] + 0.5*dt*k1[0], y[1] + 0.5*dt*k1[1]]);
-            let k3 = fn([y[0] + 0.5*dt*k2[0], y[1] + 0.5*dt*k2[1]]);
-            let k4 = fn([y[0] + dt*k3[0], y[1] + dt*k3[1]]);
-            return [ y[0] + (dt/6)*(k1[0] + 2*k2[0] + 2*k3[0] + k4[0]), y[1] + (dt/6)*(k1[1] + 2*k2[1] + 2*k3[1] + k4[1]) ];
-        }
-
-        function measurePeriod(currentTh, lastTh, lastTimeKey, periodKey, t) {
-            if (lastTh < 0 && currentTh >= 0) {
-                if (state[lastTimeKey] > 0) state[periodKey] = t - state[lastTimeKey];
-                state[lastTimeKey] = t;
-            }
-        }
-
-        function updatePhysics(dt) {
-            state.lastTheta_ex = state.theta_ex; state.lastTheta_id = state.theta_id;
-            let lastOmActive = V.renderPerspective === 'ideal' ? state.omega_id : state.omega_ex;
-
-            // Integration computes BOTH always
-            let nEx = stepRK4([state.theta_ex, state.omega_ex], dt, derivEx);
-            state.theta_ex = nEx[0]; state.omega_ex = nEx[1];
-            
-            let nId = stepRK4([state.theta_id, state.omega_id], dt, derivId);
-            state.theta_id = nId[0]; state.omega_id = nId[1];
-            state.t += dt;
-
-            measurePeriod(state.theta_ex, state.lastTheta_ex, 'lastCrossTime_ex', 'period_ex', state.t);
-            measurePeriod(state.theta_id, state.lastTheta_id, 'lastCrossTime_id', 'period_id', state.t);
-
-            // Extremum Flash
-            let activeOm = V.renderPerspective === 'ideal' ? state.omega_id : state.omega_ex;
-            let activeTh = V.renderPerspective === 'ideal' ? state.theta_id : state.theta_ex;
-            
-            if (lastOmActive * activeOm <= 0 && Math.abs(activeTh) > 0.05) {
-                state.extremumFlash = 1.0; UI.callout.style.opacity = 1;
-                UI.callout.className = `absolute top-1/4 right-4 md:right-1/4 font-bold tracking-widest uppercase text-xs md:text-sm opacity-100 transition-opacity duration-300 pointer-events-none drop-shadow-[0_0_8px_currentColor] z-10 ${V.renderPerspective==='ideal' ? 'text-purple-400' : 'text-sky-300'}`;
-            } else if (state.extremumFlash > 0) {
-                state.extremumFlash -= dt * 2;
-                if(state.extremumFlash < 0) { state.extremumFlash = 0; UI.callout.style.opacity = 0; }
-            }
-        }
-
-        function recordHistory() {
-            let th = V.renderPerspective === 'ideal' ? state.theta_id : state.theta_ex;
-            let om = V.renderPerspective === 'ideal' ? state.omega_id : state.omega_ex;
-            
-            let h = P.L * (1 - Math.cos(th));
-            let pe = P.m * P.g * h; 
-            let ke = 0.5 * P.m * (P.L * om) ** 2;
-            let te = pe + ke;
-            
-            // Dynamic Auto-scaling to prevent math cut-off due to parameter changes or drift
-            if (te > maxTE * 0.95) maxTE = te * 1.15;
-            if (Math.abs(th) > maxThPhase * 0.95) maxThPhase = Math.abs(th) * 1.15;
-            if (Math.abs(om) > maxOmPhase * 0.95) maxOmPhase = Math.abs(om) * 1.15;
-
-            timeHist.push({ t: state.t, pe, ke, te });
-            if(timeHist.length > histLen) timeHist.shift();
-
-            phaseHistEx.push({ th: state.theta_ex, om: state.omega_ex });
-            phaseHistId.push({ th: state.theta_id, om: state.omega_id });
-            if(phaseHistEx.length > histLen) { phaseHistEx.shift(); phaseHistId.shift(); }
-            
-            if (V.showTrail) {
-                let bx = V.pivotX + (P.L * V.pixelsPerMeter) * Math.sin(th);
-                let by = V.pivotY + (P.L * V.pixelsPerMeter) * Math.cos(th);
-                trailHist.push({x: bx, y: by});
-                if (trailHist.length > 100) trailHist.shift(); 
-            }
-        }
-
-        function updateHUD() {
-            let activeTh = V.renderPerspective === 'ideal' ? state.theta_id : state.theta_ex;
-            let activeOm = V.renderPerspective === 'ideal' ? state.omega_id : state.omega_ex;
-            let activeAl = V.renderPerspective === 'ideal' ? -(P.g/P.L)*activeTh : -(P.g/P.L)*Math.sin(activeTh);
-
-            UI.hTh.textContent = (activeTh * 180 / Math.PI).toFixed(1) + '°';
-            UI.hOm.textContent = activeOm.toFixed(2);
-            UI.hAl.textContent = activeAl.toFixed(2);
-            
-            let tIdeal = 2 * Math.PI * Math.sqrt(P.L / P.g);
-            UI.hTth.textContent = tIdeal.toFixed(2) + ' s';
-            
-            let pExp = V.renderPerspective === 'ideal' ? state.period_id : state.period_ex;
-            UI.hTexp.textContent = pExp ? pExp.toFixed(2) + ' s' : '-- s';
-
-            let mathErr = 0;
-            if (Math.abs(state.theta_ex) > 0.001) {
-                mathErr = Math.abs(Math.sin(state.theta_ex) - state.theta_ex) / Math.abs(state.theta_ex) * 100;
-            }
-            UI.hErrM.textContent = mathErr.toFixed(2) + '%';
-
-            if (P.c === 0 && state.initialTE > 0) {
-                let h = P.L * (1 - Math.cos(state.theta_ex));
-                let currTE = P.m * P.g * h + 0.5 * P.m * (P.L * state.omega_ex)**2;
-                let numErr = Math.abs((currTE - state.initialTE) / state.initialTE) * 100;
-                UI.hErrN.textContent = numErr.toFixed(3) + '%';
-            } else {
-                UI.hErrN.textContent = "Damping ON";
-            }
-        }
-
-        function gameLoop(time) {
-            if (state.isRunning) {
-                let dt = (time - state.lastTimestamp) / 1000;
-                if (dt > 0.1) dt = 0.1; // Prevent massive jumps if tab was inactive
-                dt *= V.animSpeed;
-                
-                const steps = 10; const subDt = dt / steps;
-                for(let i=0; i<steps; i++) updatePhysics(subDt);
-                
-                recordHistory(); updateHUD();
-                state.lastTimestamp = time; drawAll(); 
-            }
-            requestAnimationFrame(gameLoop);
-        }
-
-        // --- Rendering Engine ---
-        function resolveOverlapsAndDraw(c, labels) {
-            const PADDING = 20; 
-            for (let iter=0; iter<5; iter++) {
-                for (let i=0; i<labels.length; i++) {
-                    for (let j=i+1; j<labels.length; j++) {
-                        let l1 = labels[i], l2 = labels[j];
-                        let dx = l1.x - l2.x, dy = l1.y - l2.y;
-                        let dist = Math.sqrt(dx*dx + dy*dy);
-                        if (dist < PADDING) {
-                            if (dist === 0) { dx=1; dy=1; dist=1.414; }
-                            let p = (PADDING - dist) / 2;
-                            l1.x += (dx/dist)*p; l1.y += (dy/dist)*p;
-                            l2.x -= (dx/dist)*p; l2.y -= (dy/dist)*p;
-                        }
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans Bengali', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
                     }
                 }
             }
-            c.font = 'bold 12px "JetBrains Mono", monospace';
-            c.textAlign = 'center'; c.textBaseline = 'middle';
-            c.lineWidth = 3; c.strokeStyle = '#0b1121';
-            for (let l of labels) { c.strokeText(l.text, l.x, l.y); c.fillStyle = l.color; c.fillText(l.text, l.x, l.y); }
         }
-
-        // Vector sizing helpers
-        function adaptScale(val, base) { return Math.sign(val) * Math.pow(Math.abs(val), 0.75) * base; }
-
-        function drawArrow(c, fromx, fromy, tox, toy, color, style, label, pendingLabels) {
-            const dx = tox - fromx, dy = toy - fromy, len = Math.sqrt(dx*dx + dy*dy);
-            if (len < 2) return;
-            const angle = Math.atan2(dy, dx);
-
-            c.beginPath(); c.strokeStyle = color; c.lineWidth = style === 'thick' ? 3 : 2;
-            if (style === 'dashed') c.setLineDash([6, 6]); else if (style === 'dotted') c.setLineDash([2, 4]); else c.setLineDash([]);
-            c.moveTo(fromx, fromy); c.lineTo(tox, toy); c.stroke();
-
-            c.setLineDash([]); c.beginPath(); c.fillStyle = color;
-            c.moveTo(tox, toy);
-            c.lineTo(tox - 8 * Math.cos(angle - Math.PI/6), toy - 8 * Math.sin(angle - Math.PI/6));
-            c.lineTo(tox - 8 * Math.cos(angle + Math.PI/6), toy - 8 * Math.sin(angle + Math.PI/6));
-            c.fill();
-
-            if (label) pendingLabels.push({ text: label, x: tox + 14 * Math.cos(angle), y: toy + 14 * Math.sin(angle), color });
-        }
-
-        function drawPendulum(c, th, isPrimary, isIdeal) {
-            const px = V.pivotX, py = V.pivotY;
-            const bx = px + (P.L * V.pixelsPerMeter) * Math.sin(th);
-            const by = py + (P.L * V.pixelsPerMeter) * Math.cos(th);
-            
-            c.beginPath(); c.moveTo(px, py); c.lineTo(bx, by);
-            c.strokeStyle = isPrimary ? '#94a3b8' : '#334155'; c.lineWidth = isPrimary ? 2 : 1.5; c.stroke();
-
-            c.beginPath(); c.arc(bx, by, isPrimary ? 10 : 8, 0, Math.PI*2);
-            if (isPrimary) {
-                c.fillStyle = isIdeal ? '#c084fc' : '#38bdf8'; 
-                c.fill(); c.lineWidth = 2; c.strokeStyle = isIdeal ? '#9333ea' : '#0284c7'; c.stroke();
-            } else {
-                c.fillStyle = '#475569'; c.fill(); c.strokeStyle = '#64748b'; c.stroke();
-            }
-            return {bx, by};
-        }
-
-        function drawSimulation() {
-            const c = ctx.main;
-            const w = C.main.width / (window.devicePixelRatio || 1);
-            const h = C.main.height / (window.devicePixelRatio || 1);
-            
-            c.fillStyle = '#0b1121';
-            c.fillRect(0, 0, w, h);
-
-            if (V.showTrail && trailHist.length > 1) {
-                c.beginPath();
-                for (let i=0; i<trailHist.length; i++) { if(i===0) c.moveTo(trailHist[i].x, trailHist[i].y); else c.lineTo(trailHist[i].x, trailHist[i].y); }
-                c.strokeStyle = 'rgba(148, 163, 184, 0.4)'; c.lineWidth = 3; c.stroke();
-            }
-
-            let primaryCoords;
-            if (V.renderPerspective === 'ideal') {
-                if (V.showGhost) drawPendulum(c, state.theta_ex, false, false); 
-                primaryCoords = drawPendulum(c, state.theta_id, true, true);    
-            } else {
-                if (V.showGhost) drawPendulum(c, state.theta_id, false, true);  
-                primaryCoords = drawPendulum(c, state.theta_ex, true, false);   
-            }
-
-            const bx = primaryCoords.bx, by = primaryCoords.by;
-            const activeTh = V.renderPerspective === 'ideal' ? state.theta_id : state.theta_ex;
-            const activeOm = V.renderPerspective === 'ideal' ? state.omega_id : state.omega_ex;
-
-            // Pivot
-            c.beginPath(); c.arc(V.pivotX, V.pivotY, 4, 0, Math.PI*2); c.fillStyle = '#cbd5e1'; c.fill();
-
-            if (V.showBasis) {
-                const ext = 80, sinT = Math.sin(activeTh), cosT = Math.cos(activeTh);
-                c.beginPath(); c.setLineDash([4, 4]); c.strokeStyle = '#475569'; c.lineWidth = 1;
-                c.moveTo(bx - ext*sinT, by - ext*cosT); c.lineTo(bx + ext*sinT, by + ext*cosT);
-                c.moveTo(bx - ext*cosT, by + ext*sinT); c.lineTo(bx + ext*cosT, by - ext*sinT);
-                c.stroke(); c.setLineDash([]);
-                c.fillStyle = '#64748b'; c.font = '10px sans-serif';
-                c.fillText('u_r', bx + (ext+5)*sinT, by + (ext+5)*cosT);
-                c.fillText('u_t', bx + (ext+5)*cosT, by - (ext+5)*sinT);
-            }
-
-            const bSc = 12; 
-            const sinT = Math.sin(activeTh), cosT = Math.cos(activeTh);
-            let labels = [];
-
-            if (V.showForces) {
-                const W = P.m * P.g;
-                drawArrow(c, bx, by, bx, by + adaptScale(W, bSc), '#facc15', 'dashed', 'mg', labels);
-                const T = P.m * P.g * cosT + P.m * P.L * activeOm * activeOm;
-                drawArrow(c, bx, by, bx - adaptScale(T, bSc)*sinT, by - adaptScale(T, bSc)*cosT, '#34d399', 'solid', 'T', labels);
-            }
-
-            if (V.showNetForce) {
-                const Ft = V.renderPerspective === 'ideal' ? -P.m * P.g * activeTh : -P.m * P.g * sinT;
-                const Fr = -(P.m * P.L * activeOm * activeOm); 
-                const Fx = Ft * cosT + Fr * sinT; const Fy = Ft * (-sinT) + Fr * cosT;
-                
-                const magF = Math.sqrt(Fx * Fx + Fy * Fy);
-                if (magF > 0.001) {
-                    const scaledMag = adaptScale(magF, bSc);
-                    const Fx_scaled = (Fx / magF) * scaledMag;
-                    const Fy_scaled = (Fy / magF) * scaledMag;
-                    drawArrow(c, bx, by, bx + Fx_scaled, by + Fy_scaled, '#fb7185', 'thick', 'ΣF', labels);
-                }
-            }
-
-            if (V.showAccel) {
-                const at = V.renderPerspective === 'ideal' ? -P.g * activeTh : -P.g * sinT;
-                const ac = -(P.L * activeOm * activeOm); 
-                const ax = at * cosT + ac * sinT; const ay = at * (-sinT) + ac * cosT;
-                
-                const magA = Math.sqrt(ax * ax + ay * ay);
-                if (magA > 0.001) {
-                    const scaledMag = adaptScale(magA, bSc);
-                    const ax_scaled = (ax / magA) * scaledMag;
-                    const ay_scaled = (ay / magA) * scaledMag;
-                    drawArrow(c, bx, by, bx + ax_scaled, by + ay_scaled, '#60a5fa', 'dotted', 'a', labels);
-                }
-            }
-
-            if (V.showVel) {
-                const v = P.L * activeOm;
-                drawArrow(c, bx, by, bx + adaptScale(v, bSc)*cosT, by + adaptScale(v, bSc)*(-sinT), '#e879f9', 'dashed', 'v', labels);
-            }
-
-            resolveOverlapsAndDraw(c, labels);
-        }
-
-        // --- Data Graphs ---
-        function drawPhaseSpace() {
-            const c = ctx.phase; 
-            const dpr = window.devicePixelRatio || 1;
-            const w = C.phase.width / dpr; 
-            const h = C.phase.height / dpr;
-            
-            c.fillStyle = '#0b1120';
-            c.fillRect(0, 0, w, h);
-
-            if (w === 0 || h === 0) return;
-
-            // Strict rendering margins inside canvas to protect boundary clipping
-            const padding = 16;
-            const mapX = th => w/2 + (th / maxThPhase) * (w/2 - padding);
-            const mapY = om => h/2 - (om / maxOmPhase) * (h/2 - padding);
-
-            c.strokeStyle = '#1e293b'; c.lineWidth = 1;
-            c.beginPath(); c.moveTo(0, h/2); c.lineTo(w, h/2); c.moveTo(w/2, 0); c.lineTo(w/2, h); c.stroke();
-            
-            const drawTrace = (hist, color) => {
-                if (hist.length < 2) return;
-                c.beginPath();
-                for (let i=0; i<hist.length; i++) {
-                    if(i===0) c.moveTo(mapX(hist[i].th), mapY(hist[i].om));
-                    else c.lineTo(mapX(hist[i].th), mapY(hist[i].om));
-                }
-                c.strokeStyle = color; c.lineWidth = 1.5; c.stroke();
-            };
-
-            if (V.renderPerspective === 'ideal' || V.showGhost) drawTrace(phaseHistId, '#c084fc');
-            if (V.renderPerspective === 'real' || V.showGhost) drawTrace(phaseHistEx, '#38bdf8');
-
-            const activeTh = V.renderPerspective === 'ideal' ? state.theta_id : state.theta_ex;
-            const activeOm = V.renderPerspective === 'ideal' ? state.omega_id : state.omega_ex;
-            c.beginPath(); c.arc(mapX(activeTh), mapY(activeOm), 3, 0, Math.PI*2); c.fillStyle = '#e2e8f0'; c.fill();
-        }
-
-        function drawEnergyGraph() {
-            const c = ctx.energy; 
-            const dpr = window.devicePixelRatio || 1;
-            const w = C.energy.width / dpr; 
-            const h = C.energy.height / dpr;
-            
-            c.fillStyle = '#0b1120';
-            c.fillRect(0, 0, w, h);
-
-            if (timeHist.length < 2 || w === 0 || h === 0) return;
-
-            const tNow = state.t; const windowTime = 10;
-            const mapX = t => w - ((tNow - t) / windowTime) * w;
-            
-            // Raised bottom safe-space padding to 16px to prevent mathematical truncation of minimum state wave values
-            const padding = 16;
-            const mapY = e => h - (e / maxTE) * (h - 2 * padding) - padding;
-
-            c.strokeStyle = '#1e293b'; c.lineWidth = 1;
-            // Place the physical system zero baseline directly on the actual 0J line (mapY(0))
-            c.beginPath(); c.moveTo(0, mapY(0)); c.lineTo(w, mapY(0)); c.stroke();
-
-            const drawLine = (key, color, thick=1.5) => {
-                c.beginPath();
-                for (let i=0; i<timeHist.length; i++) {
-                    if (tNow - timeHist[i].t > windowTime) continue; 
-                    let x = mapX(timeHist[i].t), y = mapY(timeHist[i][key]);
-                    if(i===0 || tNow - timeHist[i-1].t > windowTime) c.moveTo(x, y); else c.lineTo(x, y);
-                }
-                c.strokeStyle = color; c.lineWidth = thick; c.stroke();
-            };
-
-            drawLine('te', '#94a3b8', 2); drawLine('pe', '#38bdf8'); drawLine('ke', '#e879f9');
-        }
-
-        function drawAll() { 
-            drawSimulation(); 
-            drawPhaseSpace(); 
-            drawEnergyGraph(); 
-        }
-
-        window.addEventListener('load', init);
-        
     </script>
+
+    <!-- Lucide for icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=Noto+Sans+Bengali:wght@400;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* ======================================================================
+           AFEED GLOBAL STYLING
+         ====================================================================== */
+        :root {
+            --ease-smooth: cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        body {
+            font-family: 'Inter', 'Noto Sans Bengali', sans-serif;
+            -webkit-user-select: none;
+            user-select: none;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+
+        /* Glassmorphism */
+        .glass {
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+        .dark .glass { background: rgba(15, 23, 42, 0.8); }
+        html:not(.dark) .glass { background: rgba(255, 253, 250, 0.85); }
+
+        /* Brand Gradient */
+        .brand-text { font-family: 'Inter', sans-serif; font-weight: 900; letter-spacing: -0.05em; }
+        .brand-gradient { display: inline-block; padding-right: 0.08em; }
+        .dark .brand-gradient {
+            background: linear-gradient(135deg, #818cf8 0%, #c084fc 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        html:not(.dark) .brand-gradient {
+            background: linear-gradient(135deg, #ea580c 0%, #f59e0b 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+
+        /* Custom Scrollbar */
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.3); border-radius: 10px; }
+        .dark .custom-scroll::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.2); }
+
+        /* Canvas overrides */
+        canvas { display: block; touch-action: auto; }
+
+        /* ======================================================================
+           REGULAR ACCENT SLIDERS
+         ====================================================================== */
+        input[type=range].afeed-slider {
+            -webkit-appearance: none; appearance: none;
+            width: 100%; height: 6px; border-radius: 3px;
+            outline: none; background: #cbd5e1; transition: background 0.3s;
+        }
+        .dark input[type=range].afeed-slider { background: #334155; }
+        
+        input[type=range].afeed-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 20px; height: 20px; border-radius: 50%;
+            background: #ffffff; cursor: pointer;
+            border: 2px solid #ea580c; 
+            box-shadow: -400px 0 0 390px rgba(234, 88, 12, 0.3); 
+            transition: transform 0.1s;
+        }
+        .dark input[type=range].afeed-slider::-webkit-slider-thumb {
+            border-color: #818cf8; 
+            box-shadow: -400px 0 0 390px rgba(129, 140, 248, 0.3); 
+        }
+        
+        input[type=range].afeed-slider::-moz-range-thumb {
+            width: 20px; height: 20px; border-radius: 50%;
+            background: #ffffff; cursor: pointer; border: 2px solid #ea580c;
+        }
+        .dark input[type=range].afeed-slider::-moz-range-thumb { border-color: #818cf8; }
+        
+        .slider-wrapper { overflow: hidden; border-radius: 10px; padding: 8px 0; }
+        
+        /* Checkbox styling */
+        .afeed-checkbox { accent-color: #ea580c; width: 1.1rem; height: 1.1rem; cursor: pointer; }
+        .dark .afeed-checkbox { accent-color: #818cf8; }
+
+        .smooth-transition { transition: all 0.5s var(--ease-smooth); }
+    </style>
+    
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('afeed_theme') || 'dark';
+            if (savedTheme === 'dark') document.documentElement.classList.add('dark');
+            else document.documentElement.classList.remove('dark');
+        })();
+    </script>
+</head>
+<body class="bg-[#fffdfa] text-slate-700 dark:bg-slate-950 dark:text-slate-300 transition-colors duration-500 min-h-screen flex flex-col">
+
+    <!-- TOP NAVIGATION BAR -->
+    <nav class="sticky top-0 z-50 border-b border-orange-100 dark:border-slate-800/80 glass transition-colors duration-500 h-16 shrink-0">
+        <div class="w-full px-4 md:px-6 h-full flex items-center justify-between">
+            <div class="flex items-center gap-3 md:gap-5">
+                <a href="index.html" class="p-2 rounded-xl border border-orange-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-orange-50/50 dark:hover:bg-slate-800 text-orange-600 dark:text-slate-400 hover:text-orange-700 dark:hover:text-indigo-400 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-orange-500/30 dark:focus:ring-indigo-500/30" aria-label="Back to Main Menu">
+                    <i data-lucide="arrow-left" class="w-5 h-5"></i>
+                </a>
+                <div class="flex items-center gap-3">
+                    <span class="brand-text text-2xl tracking-tight brand-gradient inline-block px-1 hidden md:block">AFEED</span>
+                    <div class="hidden md:block w-px h-6 bg-orange-200 dark:bg-slate-700"></div>
+                    <div>
+                        <h1 class="text-sm md:text-base font-bold text-slate-800 dark:text-white leading-tight">Simple Harmonic Motion</h1>
+                        <p class="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 font-medium">Pendulum Dynamics Sandbox</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2 md:gap-4">
+                <button class="hidden sm:flex p-2.5 rounded-xl border border-orange-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-orange-50/50 dark:hover:bg-slate-800 text-orange-600 dark:text-slate-400 hover:text-orange-700 dark:hover:text-indigo-400 transition-all duration-300" title="Information">
+                    <i data-lucide="info" class="w-5 h-5"></i>
+                </button>
+                <button onclick="toggleTheme()" class="p-2.5 rounded-xl border border-orange-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-orange-50/50 dark:hover:bg-slate-800 text-orange-600 dark:text-slate-400 hover:text-orange-700 dark:hover:text-amber-400 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-orange-500/30 dark:focus:ring-indigo-500/30">
+                    <span id="theme-icon-container" class="flex items-center justify-center relative z-10"></span>
+                </button>
+                <button onclick="toggleFullscreen()" class="p-2.5 rounded-xl border border-orange-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-orange-50/50 dark:hover:bg-slate-800 text-orange-600 dark:text-slate-400 hover:text-orange-700 dark:hover:text-indigo-400 transition-all duration-300" title="Toggle Fullscreen">
+                    <i data-lucide="maximize" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- MAIN SCROLLABLE CONTENT -->
+    <main class="flex flex-col w-full flex-1">
+        
+        <!-- TOP SECTION: Sidebar & Canvas -->
+        <div class="flex w-full relative h-[calc(100svh-64px)] min-h-[500px] shrink-0 z-10">
+            
+            <!-- LEFT CONTROL PANEL -->
+            <aside id="sidebar" class="absolute md:relative z-30 h-full w-80 md:w-80 lg:w-96 bg-[#fffdfa] dark:bg-slate-950 border-r border-orange-100 dark:border-slate-800/80 shadow-2xl md:shadow-none flex flex-col shrink-0 transform transition-transform duration-300 ease-in-out md:translate-x-0">
+                
+                <div class="p-5 flex-1 overflow-y-auto custom-scroll flex flex-col gap-5 pb-24 lg:pb-5">
+                    
+                    <div class="flex justify-between items-start">
+                        <div class="flex items-center gap-2 mb-1">
+                            <i data-lucide="sliders-horizontal" class="w-4 h-4 text-orange-600 dark:text-indigo-400"></i>
+                            <h3 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Control Panel</h3>
+                        </div>
+                        <button onclick="toggleSidebar()" class="md:hidden p-2 rounded-lg text-slate-500 hover:bg-orange-50 dark:hover:bg-slate-800 transition-colors">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+
+                    <!-- Playback Controls -->
+                    <div class="flex space-x-2 shrink-0">
+                        <button id="btnStart" class="flex-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30 dark:hover:bg-emerald-500/30 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm">Play</button>
+                        <button id="btnPause" class="flex-1 bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-200 dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/30 dark:hover:bg-amber-500/30 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm">Pause</button>
+                        <button id="btnReset" class="flex-1 bg-rose-100 text-rose-700 hover:bg-rose-200 border border-rose-200 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30 dark:hover:bg-rose-500/30 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm">Reset</button>
+                    </div>
+
+                    <!-- Visual Perspective -->
+                    <div class="bg-white dark:bg-slate-900/50 p-4 rounded-2xl border border-orange-100 dark:border-slate-800 shrink-0">
+                        <h2 class="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">Visual Perspective</h2>
+                        <button id="btnPerspective" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-orange-600 dark:text-indigo-400 text-sm py-2 rounded-xl font-bold tracking-wide transition-all shadow-sm hover:bg-slate-100 dark:hover:bg-slate-800/80 mb-3">
+                            Perspective: Exam Approx.
+                        </button>
+                        <label class="flex items-center space-x-3 cursor-pointer group">
+                            <input type="checkbox" id="chkGhost" class="afeed-checkbox" checked>
+                            <span id="lblGhostText" class="text-xs font-medium text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">Show Physical Reality (Ghost)</span>
+                        </label>
+                        <div id="modelFeedback" class="mt-3 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-lg border border-emerald-200 dark:border-emerald-800/50 text-center transition-colors">
+                            Approximation Valid (Small Angle)
+                        </div>
+                    </div>
+
+                    <!-- Parameters -->
+                    <div class="flex flex-col gap-4 bg-white dark:bg-slate-900/50 p-4 rounded-2xl border border-orange-100 dark:border-slate-800 shrink-0">
+                        <h2 class="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">System Parameters</h2>
+                        
+                        <div>
+                            <div class="flex justify-between mb-1"><label class="text-xs font-bold text-slate-500 dark:text-slate-400">Length (L)</label><span id="valLength" class="text-orange-600 dark:text-indigo-400 font-bold text-xs font-mono">20.0 m</span></div>
+                            <div class="slider-wrapper"><input type="range" id="sliderLength" class="afeed-slider" min="5" max="30" step="0.1" value="20"></div>
+                        </div>
+                        <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                            <div class="flex justify-between mb-1"><label class="text-xs font-bold text-slate-500 dark:text-slate-400">Initial Angle (θ₀)</label><span id="valAngle" class="text-orange-600 dark:text-indigo-400 font-bold text-xs font-mono">15&deg;</span></div>
+                            <div class="slider-wrapper"><input type="range" id="sliderAngle" class="afeed-slider" min="1" max="150" step="1" value="15"></div>
+                        </div>
+                        <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                            <div class="flex justify-between mb-1"><label class="text-xs font-bold text-slate-500 dark:text-slate-400">Time Scale</label><span id="valSpeed" class="text-slate-600 dark:text-slate-300 font-bold text-xs font-mono">1.0x</span></div>
+                            <div class="slider-wrapper"><input type="range" id="sliderSpeed" class="afeed-slider" min="0.1" max="3" step="0.1" value="1"></div>
+                        </div>
+                    </div>
+
+                    <!-- Visual Overlay -->
+                    <div class="flex flex-col gap-3 bg-white dark:bg-slate-900/50 p-4 rounded-2xl border border-orange-100 dark:border-slate-800 shrink-0">
+                        <h2 class="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Vectors & Overlay</h2>
+                        
+                        <label class="flex items-center space-x-3 cursor-pointer group"><input type="checkbox" id="chkBasis" class="afeed-checkbox"><span class="text-xs font-medium text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">Radial/Tangential Basis</span></label>
+                        <label class="flex items-center space-x-3 cursor-pointer group pb-3 border-b border-slate-100 dark:border-slate-800/80"><input type="checkbox" id="chkTrail" class="afeed-checkbox" checked><span class="text-xs font-medium text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">Trajectory Memory</span></label>
+                        
+                        <div class="pt-1 space-y-3">
+                            <label class="flex items-center space-x-3 cursor-pointer group"><input type="checkbox" id="chkForces" class="afeed-checkbox" checked><span class="text-xs font-medium text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-grow">Forces (mg, T)</span> <span class="text-[10px] font-mono text-amber-500 font-bold">--</span></label>
+                            <label class="flex items-center space-x-3 cursor-pointer group"><input type="checkbox" id="chkNetForce" class="afeed-checkbox"><span class="text-xs font-medium text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-grow">Net Force (ΣF)</span> <span class="text-[10px] font-mono text-rose-500 font-bold">━━</span></label>
+                            <label class="flex items-center space-x-3 cursor-pointer group"><input type="checkbox" id="chkAccel" class="afeed-checkbox"><span class="text-xs font-medium text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-grow">Acceleration (a)</span> <span class="text-[10px] font-mono text-blue-500 font-bold">&middot;&middot;</span></label>
+                            <label class="flex items-center space-x-3 cursor-pointer group"><input type="checkbox" id="chkVel" class="afeed-checkbox"><span class="text-xs font-medium text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-grow">Velocity (v)</span> <span class="text-[10px] font-mono text-fuchsia-500 font-bold">&middot;-&middot;</span></label>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- MAIN SIMULATION CANVAS -->
+            <div id="canvas-container" class="flex-1 relative bg-slate-50 dark:bg-[#050505] overflow-hidden min-h-0 border-b border-orange-100 dark:border-slate-800/80 shadow-inner">
+                
+                <button id="sidebar-toggle-btn" onclick="toggleSidebar()" class="md:hidden absolute top-4 left-4 z-20 p-2.5 glass rounded-xl shadow-lg border border-orange-100 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:text-orange-600 dark:hover:text-indigo-400 transition-colors">
+                    <i data-lucide="panel-left-open" class="w-5 h-5"></i>
+                </button>
+
+                <!-- Live Scientific Diagnostics -->
+                <div class="absolute top-4 right-4 md:top-6 md:right-6 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-3 md:p-4 rounded-2xl shadow-xl border border-orange-100 dark:border-slate-800 pointer-events-none flex gap-4 md:gap-6 z-10 transition-colors">
+                    <!-- Kinematics -->
+                    <div>
+                        <h3 class="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5 border-b border-slate-100 dark:border-slate-800 pb-1.5">State Vector</h3>
+                        <table class="text-[10px] md:text-[11px] font-mono text-slate-600 dark:text-slate-300 w-24 md:w-28">
+                            <tr><td class="py-0.5">&theta;:</td><td class="text-right font-bold text-slate-900 dark:text-white" id="hudTheta">0.0&deg;</td></tr>
+                            <tr><td class="py-0.5">&omega;:</td><td class="text-right font-bold text-slate-900 dark:text-white" id="hudOmega">0.00</td></tr>
+                            <tr><td class="py-0.5">&alpha;:</td><td class="text-right font-bold text-slate-900 dark:text-white" id="hudAlpha">0.00</td></tr>
+                        </table>
+                    </div>
+                    <!-- Period/Errors -->
+                    <div class="border-l border-slate-100 dark:border-slate-800 pl-4 md:pl-6">
+                        <h3 class="text-[9px] md:text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5 border-b border-slate-100 dark:border-slate-800 pb-1.5">Diagnostics</h3>
+                        <table class="text-[10px] md:text-[11px] font-mono text-slate-600 dark:text-slate-300 w-32 md:w-40">
+                            <tr><td class="py-0.5">T(ideal):</td><td class="text-right font-bold text-purple-600 dark:text-purple-400" id="hudTth">0.00 s</td></tr>
+                            <tr><td class="py-0.5">T(exp):</td><td class="text-right font-bold text-emerald-600 dark:text-emerald-400" id="hudTexp">-- s</td></tr>
+                            <tr><td class="py-0.5 pt-1.5 text-[9px] text-slate-500">Eq. Err:</td><td class="text-right font-bold text-amber-600 dark:text-amber-400 text-[10px] pt-1.5" id="hudErrMath">0.00%</td></tr>
+                            <tr><td class="py-0.5 text-[9px] text-slate-500">RK4 Drift:</td><td class="text-right font-bold text-slate-400 text-[10px]" id="hudErrNum">0.000%</td></tr>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Extremum Flash Text -->
+                <div id="extremumCallout" class="absolute top-1/4 right-8 md:right-1/4 text-orange-500 dark:text-indigo-400 font-bold tracking-widest uppercase text-xs md:text-sm opacity-0 transition-opacity duration-300 pointer-events-none drop-shadow-md z-10">
+                    v = 0 | a = max
+                </div>
+
+                <canvas id="simCanvas" class="absolute inset-0 w-full h-full z-0"></canvas>
+            </div>
+            
+        </div>
+
+        <!-- BOTTOM SECTION: Full-Width Data Panels (Scroll down to view) -->
+        <!-- Adjusted layout: Phase Space is square-ish, Energy takes the rest -->
+        <div class="w-full flex flex-col lg:flex-row shrink-0 bg-[#fffdfa] dark:bg-slate-950 z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.2)]">
+            
+            <!-- Bottom Left Panel: Phase Space Graph -->
+            <div class="lg:w-[450px] xl:w-[500px] shrink-0 flex flex-col p-5 md:p-6 border-b lg:border-b-0 lg:border-r border-orange-100 dark:border-slate-800/80 min-h-[400px] lg:min-h-[450px]">
+                <h3 class="text-xs font-bold text-slate-600 dark:text-slate-300 mb-3 flex items-center gap-2 uppercase tracking-wide shrink-0">
+                    <i data-lucide="orbit" class="w-5 h-5 text-orange-500 dark:text-indigo-400"></i> Phase Space (θ vs ω)
+                </h3>
+                <div class="flex-1 relative w-full bg-white dark:bg-slate-900/50 rounded-2xl border border-orange-100 dark:border-slate-800/50 shadow-inner overflow-hidden">
+                    <canvas id="phaseCanvas" class="absolute inset-0 w-full h-full"></canvas>
+                </div>
+            </div>
+
+            <!-- Bottom Right Panel: Energy Time-History -->
+            <div class="flex-1 flex flex-col p-5 md:p-6 min-h-[400px] lg:min-h-[450px]">
+                <h3 class="text-xs font-bold text-slate-600 dark:text-slate-300 mb-3 flex justify-between items-center uppercase tracking-wide shrink-0">
+                    <span class="flex items-center gap-2"><i data-lucide="activity" class="w-5 h-5 text-orange-500 dark:text-indigo-400"></i> Energy vs Time</span>
+                    <div class="flex space-x-2.5">
+                        <span class="text-blue-500 font-bold text-[9px] md:text-[10px] font-mono flex items-center uppercase tracking-wider">&bull; PE</span>
+                        <span class="text-fuchsia-500 font-bold text-[9px] md:text-[10px] font-mono flex items-center uppercase tracking-wider">&bull; KE</span>
+                        <span class="text-slate-400 font-bold text-[9px] md:text-[10px] font-mono flex items-center uppercase tracking-wider">&bull; TE</span>
+                    </div>
+                </h3>
+                <div class="flex-1 relative w-full bg-white dark:bg-slate-900/50 rounded-2xl border border-orange-100 dark:border-slate-800/50 shadow-inner overflow-hidden">
+                    <canvas id="energyCanvas" class="absolute inset-0 w-full h-full"></canvas>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+<script>
+    // --- UI Setup & OS Theme ---
+    function applyThemeIcons() {
+        const isDark = document.documentElement.classList.contains('dark');
+        const themeIconContainer = document.getElementById('theme-icon-container');
+        if (isDark) {
+            themeIconContainer.innerHTML = `<i data-lucide="sun" class="w-5 h-5 text-amber-400"></i>`;
+        } else {
+            themeIconContainer.innerHTML = `<i data-lucide="moon" class="w-5 h-5 text-orange-600"></i>`;
+        }
+        if(window.lucide) lucide.createIcons();
+    }
+
+    function toggleTheme() {
+        const isDark = document.documentElement.classList.contains('dark');
+        if(isDark) {
+            document.documentElement.classList.remove('dark');
+            localStorage.setItem('afeed_theme', 'light');
+        } else {
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('afeed_theme', 'dark');
+        }
+        applyThemeIcons();
+        if(!state.isRunning) drawAll(); 
+    }
+
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => console.log(err));
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    const sidebar = document.getElementById('sidebar');
+    let isSidebarOpen = window.innerWidth >= 768; 
+    function toggleSidebar() {
+        isSidebarOpen = !isSidebarOpen;
+        if (isSidebarOpen) { sidebar.classList.remove('-translate-x-full'); } 
+        else { sidebar.classList.add('-translate-x-full'); }
+        setTimeout(resizeCanvases, 300);
+    }
+    
+    window.addEventListener('resize', () => {
+        if(window.innerWidth >= 768 && !isSidebarOpen) { toggleSidebar(); } 
+        else if (window.innerWidth < 768 && isSidebarOpen) { toggleSidebar(); }
+        resizeCanvases();
+        if(!state.isRunning) drawAll();
+    });
+
+    // --- Dynamic Theming Colors ---
+    function getColors() {
+        const isDark = document.documentElement.classList.contains('dark');
+        return {
+            bg: isDark ? '#050505' : '#f8fafc',
+            text: isDark ? '#e2e8f0' : '#475569',
+            grid: isDark ? '#1e293b' : '#e2e8f0',
+            primaryPendulum: isDark ? '#818cf8' : '#ea580c', 
+            primaryLine: isDark ? '#6366f1' : '#c2410c',
+            ghostPendulum: isDark ? '#475569' : '#94a3b8',
+            pivot: isDark ? '#cbd5e1' : '#64748b',
+            phaseTraceEx: isDark ? '#38bdf8' : '#0ea5e9', 
+            phaseTraceId: isDark ? '#c084fc' : '#9333ea', 
+            energyTE: isDark ? '#94a3b8' : '#64748b',
+            energyPE: { 
+                line: isDark ? '#38bdf8' : '#0ea5e9', 
+                fill: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(14, 165, 233, 0.15)' 
+            },
+            energyKE: { 
+                line: isDark ? '#e879f9' : '#c026d3', 
+                fill: isDark ? 'rgba(232, 121, 249, 0.15)' : 'rgba(192, 38, 211, 0.15)' 
+            },
+            axis: isDark ? '#334155' : '#cbd5e1'
+        };
+    }
+
+    // --- Core Physics System ---
+    const P = { L: 20, g: 9.8, maxAngle: 15, m: 1 };
+
+    const state = {
+        t: 0,
+        theta_ex: 0, omega_ex: 0, 
+        theta_id: 0, omega_id: 0, 
+        isRunning: false,
+        lastTimestamp: 0,
+        
+        initialTE: 0.01,
+        initialTh: 0.01,
+        initialOm: 0.01,
+
+        lastTheta_ex: 0, lastTheta_id: 0,
+        lastCrossTime_ex: -1, lastCrossTime_id: -1,
+        period_ex: null, period_id: null,
+        extremumFlash: 0 
+    };
+
+    const V = {
+        renderPerspective: 'ideal', 
+        showGhost: true,            
+        showForces: true, showNetForce: false, showAccel: false, showVel: false,
+        showTrail: true, showBasis: false,
+        animSpeed: 1, pixelsPerMeter: 15, pivotX: 0, pivotY: 0
+    };
+
+    const histLen = 400;
+    let timeHist = []; let phaseHistEx = []; let phaseHistId = []; let trailHist = [];
+
+    // --- DOM Bindings ---
+    const C = { 
+        main: document.getElementById('simCanvas'), 
+        phase: document.getElementById('phaseCanvas'), 
+        energy: document.getElementById('energyCanvas') 
+    };
+    const ctx = { 
+        main: C.main.getContext('2d', {alpha: false}), 
+        phase: C.phase.getContext('2d', {alpha: false}), 
+        energy: C.energy.getContext('2d', {alpha: false}) 
+    };
+    const Containers = {
+        main: document.getElementById('canvas-container'),
+        phase: C.phase.parentElement,
+        energy: C.energy.parentElement
+    };
+
+    const UI = {
+        btnPersp: document.getElementById('btnPerspective'),
+        lblGhost: document.getElementById('lblGhostText'), chkGhost: document.getElementById('chkGhost'),
+        feedback: document.getElementById('modelFeedback'),
+        len: document.getElementById('sliderLength'), valLen: document.getElementById('valLength'),
+        ang: document.getElementById('sliderAngle'), valAng: document.getElementById('valAngle'),
+        spd: document.getElementById('sliderSpeed'), valSpd: document.getElementById('valSpeed'),
+        callout: document.getElementById('extremumCallout'),
+        chkBas: document.getElementById('chkBasis'), chkTrl: document.getElementById('chkTrail'),
+        chkFor: document.getElementById('chkForces'), chkNet: document.getElementById('chkNetForce'),
+        chkAcc: document.getElementById('chkAccel'), chkVel: document.getElementById('chkVel'),
+        hTh: document.getElementById('hudTheta'), hOm: document.getElementById('hudOmega'), hAl: document.getElementById('hudAlpha'),
+        hTth: document.getElementById('hudTth'), hTexp: document.getElementById('hudTexp'),
+        hErrM: document.getElementById('hudErrMath'), hErrN: document.getElementById('hudErrNum')
+    };
+
+    // --- Initialization ---
+    function init() {
+        applyThemeIcons();
+        setupObservers();
+
+        UI.btnPersp.addEventListener('click', () => {
+            const isDark = document.documentElement.classList.contains('dark');
+            if (V.renderPerspective === 'ideal') {
+                V.renderPerspective = 'real';
+                UI.btnPersp.textContent = 'Perspective: Physical Reality';
+                UI.btnPersp.className = `w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 ${isDark ? 'text-sky-400' : 'text-blue-600'} text-sm py-2 rounded-xl font-bold tracking-wide transition-all shadow-sm hover:bg-slate-100 dark:hover:bg-slate-800/80 mb-3`;
+                UI.lblGhost.textContent = 'Show Exam Approx. (Ghost)';
+            } else {
+                V.renderPerspective = 'ideal';
+                UI.btnPersp.textContent = 'Perspective: Exam Approx.';
+                UI.btnPersp.className = `w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 ${isDark ? 'text-purple-400' : 'text-purple-600'} text-sm py-2 rounded-xl font-bold tracking-wide transition-all shadow-sm hover:bg-slate-100 dark:hover:bg-slate-800/80 mb-3`;
+                UI.lblGhost.textContent = 'Show Physical Reality (Ghost)';
+            }
+            resetSim(); 
+        });
+
+        UI.chkGhost.addEventListener('change', e => {
+            V.showGhost = e.target.checked;
+            if(!state.isRunning) drawAll();
+        });
+
+        const bindSlider = (el, valEl, key, suffix, reset = true) => {
+            el.addEventListener('input', e => {
+                let val = parseFloat(e.target.value);
+                P[key] = val; valEl.innerHTML = `${val.toFixed(1)}${suffix}`;
+                if(key === 'maxAngle') checkApproximationValidity(val);
+                if(reset) resetSim();
+            });
+        };
+        
+        bindSlider(UI.len, UI.valLen, 'L', ' m');
+        bindSlider(UI.ang, UI.valAng, 'maxAngle', '&deg;');
+        
+        UI.spd.addEventListener('input', e => { V.animSpeed = parseFloat(e.target.value); UI.valSpd.textContent = `${V.animSpeed.toFixed(1)}x`; });
+
+        const bindCheck = (el, key) => { el.addEventListener('change', e => { V[key] = e.target.checked; if(!state.isRunning) drawAll(); }); };
+        bindCheck(UI.chkBas, 'showBasis'); bindCheck(UI.chkTrl, 'showTrail');
+        bindCheck(UI.chkFor, 'showForces'); bindCheck(UI.chkNet, 'showNetForce'); bindCheck(UI.chkAcc, 'showAccel'); bindCheck(UI.chkVel, 'showVel');
+
+        document.getElementById('btnStart').addEventListener('click', () => {
+            if (!state.isRunning) { state.isRunning = true; state.lastTimestamp = performance.now(); requestAnimationFrame(gameLoop); }
+        });
+        document.getElementById('btnPause').addEventListener('click', () => state.isRunning = false);
+        document.getElementById('btnReset').addEventListener('click', resetSim);
+
+        checkApproximationValidity(P.maxAngle);
+        resetSim(); 
+        resizeCanvases();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function setupObservers() {
+        const resizeObserver = new ResizeObserver(entries => {
+            let requiresRedraw = false;
+            const dpr = window.devicePixelRatio || 1;
+            
+            for (let entry of entries) {
+                const target = entry.target;
+                let canvas, context;
+                if (target === Containers.main) { canvas = C.main; context = ctx.main; }
+                else if (target === Containers.phase) { canvas = C.phase; context = ctx.phase; }
+                else if (target === Containers.energy) { canvas = C.energy; context = ctx.energy; }
+                
+                if (canvas && context) {
+                    const rect = target.getBoundingClientRect();
+                    const newW = Math.floor(rect.width * dpr);
+                    const newH = Math.floor(rect.height * dpr);
+                    
+                    if (canvas.width !== newW || canvas.height !== newH) {
+                        canvas.width = newW;
+                        canvas.height = newH;
+                        context.setTransform(1, 0, 0, 1, 0, 0); 
+                        context.scale(dpr, dpr);
+                        requiresRedraw = true;
+                        
+                        if (target === Containers.main) {
+                            V.pivotX = rect.width / 2;
+                            V.pivotY = rect.height * 0.25;
+                            let calcScale = (rect.height * 0.55) / 30;
+                            V.pixelsPerMeter = Math.max(calcScale, 3); 
+                        }
+                    }
+                }
+            }
+            if (requiresRedraw) drawAll();
+        });
+
+        resizeObserver.observe(Containers.main);
+        resizeObserver.observe(Containers.phase);
+        resizeObserver.observe(Containers.energy);
+    }
+    
+    function resizeCanvases() {
+        const dpr = window.devicePixelRatio || 1;
+        [
+            {c: C.main, t: Containers.main, cx: ctx.main},
+            {c: C.phase, t: Containers.phase, cx: ctx.phase},
+            {c: C.energy, t: Containers.energy, cx: ctx.energy}
+        ].forEach(({c, t, cx}) => {
+            const rect = t.getBoundingClientRect();
+            c.width = rect.width * dpr;
+            c.height = rect.height * dpr;
+            cx.setTransform(1, 0, 0, 1, 0, 0);
+            cx.scale(dpr, dpr);
+        });
+        
+        const mRect = Containers.main.getBoundingClientRect();
+        V.pivotX = mRect.width / 2; V.pivotY = mRect.height * 0.25;
+        V.pixelsPerMeter = Math.max((mRect.height * 0.55) / 30, 3); 
+    }
+
+    function checkApproximationValidity(angle) {
+        const f = UI.feedback;
+        f.className = "mt-3 text-xs font-bold p-2 rounded-lg border text-center transition-colors";
+        
+        if (angle <= 15) {
+            f.textContent = "Approximation Valid (Small Angle)";
+            f.classList.add('bg-emerald-50', 'dark:bg-emerald-900/20', 'border-emerald-200', 'dark:border-emerald-800/50', 'text-emerald-600', 'dark:text-emerald-400');
+        } else if (angle <= 45) {
+            f.textContent = "Minor Deviation Emerging";
+            f.classList.add('bg-amber-50', 'dark:bg-amber-900/20', 'border-amber-200', 'dark:border-amber-800/50', 'text-amber-600', 'dark:text-amber-400');
+        } else if (angle <= 90) {
+            f.textContent = "Significant Deviation (Nonlinear)";
+            f.classList.add('bg-orange-50', 'dark:bg-orange-900/20', 'border-orange-200', 'dark:border-orange-800/50', 'text-orange-600', 'dark:text-orange-400');
+        } else {
+            f.textContent = "Model Breakdown (Near-Inverted)";
+            f.classList.add('bg-rose-50', 'dark:bg-rose-900/20', 'border-rose-200', 'dark:border-rose-800/50', 'text-rose-600', 'dark:text-rose-400');
+        }
+    }
+
+    function resetSim() {
+        state.isRunning = false; state.t = 0;
+        const initTh = P.maxAngle * (Math.PI / 180);
+        state.theta_ex = initTh; state.omega_ex = 0;
+        state.theta_id = initTh; state.omega_id = 0;
+        
+        state.lastTheta_ex = initTh; state.lastTheta_id = initTh;
+        state.lastCrossTime_ex = -1; state.lastCrossTime_id = -1;
+        state.period_ex = null; state.period_id = null;
+        state.extremumFlash = 0; UI.callout.style.opacity = 0;
+
+        timeHist = []; phaseHistEx = []; phaseHistId = []; trailHist = [];
+        
+        // Setup mathematically precise static boundaries to permanently fix graph scaling 
+        let exactPE = P.m * P.g * P.L * (1 - Math.cos(initTh));
+        let idealPE = 0.5 * P.m * P.g * P.L * initTh * initTh;
+        
+        state.initialTE = (V.renderPerspective === 'ideal' ? idealPE : exactPE) || 0.001;
+        state.initialTh = Math.abs(initTh) || 0.001;
+        
+        // For phase space, ideal max omega perfectly maps a 1:1 circle. Exact omega is slightly smaller.
+        state.initialOm = state.initialTh * Math.sqrt(P.g / P.L) || 0.001;
+
+        updateHUD(); drawAll();
+    }
+
+    // --- Numerical Integrator (RK4) ---
+    const derivEx = y => [ y[1], -(P.g / P.L) * Math.sin(y[0]) ];
+    const derivId = y => [ y[1], -(P.g / P.L) * y[0] ];
+
+    function stepRK4(y, dt, fn) {
+        let k1 = fn(y);
+        let k2 = fn([y[0] + 0.5*dt*k1[0], y[1] + 0.5*dt*k1[1]]);
+        let k3 = fn([y[0] + 0.5*dt*k2[0], y[1] + 0.5*dt*k2[1]]);
+        let k4 = fn([y[0] + dt*k3[0], y[1] + dt*k3[1]]);
+        return [ y[0] + (dt/6)*(k1[0] + 2*k2[0] + 2*k3[0] + k4[0]), y[1] + (dt/6)*(k1[1] + 2*k2[1] + 2*k3[1] + k4[1]) ];
+    }
+
+    function measurePeriod(currentTh, lastTh, lastTimeKey, periodKey, t) {
+        if (lastTh < 0 && currentTh >= 0) {
+            if (state[lastTimeKey] > 0) state[periodKey] = t - state[lastTimeKey];
+            state[lastTimeKey] = t;
+        }
+    }
+
+    function updatePhysics(dt) {
+        state.lastTheta_ex = state.theta_ex; state.lastTheta_id = state.theta_id;
+        let lastOmActive = V.renderPerspective === 'ideal' ? state.omega_id : state.omega_ex;
+
+        let nEx = stepRK4([state.theta_ex, state.omega_ex], dt, derivEx);
+        state.theta_ex = nEx[0]; state.omega_ex = nEx[1];
+        
+        let nId = stepRK4([state.theta_id, state.omega_id], dt, derivId);
+        state.theta_id = nId[0]; state.omega_id = nId[1];
+        state.t += dt;
+
+        measurePeriod(state.theta_ex, state.lastTheta_ex, 'lastCrossTime_ex', 'period_ex', state.t);
+        measurePeriod(state.theta_id, state.lastTheta_id, 'lastCrossTime_id', 'period_id', state.t);
+
+        let activeOm = V.renderPerspective === 'ideal' ? state.omega_id : state.omega_ex;
+        let activeTh = V.renderPerspective === 'ideal' ? state.theta_id : state.theta_ex;
+        
+        if (lastOmActive * activeOm <= 0 && Math.abs(activeTh) > 0.05) {
+            state.extremumFlash = 1.0; UI.callout.style.opacity = 1;
+        } else if (state.extremumFlash > 0) {
+            state.extremumFlash -= dt * 2;
+            if(state.extremumFlash < 0) { state.extremumFlash = 0; UI.callout.style.opacity = 0; }
+        }
+    }
+
+    function recordHistory() {
+        let th = V.renderPerspective === 'ideal' ? state.theta_id : state.theta_ex;
+        let om = V.renderPerspective === 'ideal' ? state.omega_id : state.omega_ex;
+        
+        let pe, ke;
+        if (V.renderPerspective === 'ideal') {
+            pe = 0.5 * P.m * P.g * P.L * th * th;
+        } else {
+            let h = P.L * (1 - Math.cos(th));
+            pe = P.m * P.g * h; 
+        }
+        
+        ke = 0.5 * P.m * (P.L * om) ** 2;
+        let te = pe + ke;
+
+        timeHist.push({ t: state.t, pe, ke, te });
+        if(timeHist.length > histLen) timeHist.shift();
+
+        phaseHistEx.push({ th: state.theta_ex, om: state.omega_ex });
+        phaseHistId.push({ th: state.theta_id, om: state.omega_id });
+        if(phaseHistEx.length > histLen) { phaseHistEx.shift(); phaseHistId.shift(); }
+        
+        if (V.showTrail) {
+            let bx = V.pivotX + (P.L * V.pixelsPerMeter) * Math.sin(th);
+            let by = V.pivotY + (P.L * V.pixelsPerMeter) * Math.cos(th);
+            trailHist.push({x: bx, y: by});
+            if (trailHist.length > 100) trailHist.shift(); 
+        }
+    }
+
+    function updateHUD() {
+        let activeTh = V.renderPerspective === 'ideal' ? state.theta_id : state.theta_ex;
+        let activeOm = V.renderPerspective === 'ideal' ? state.omega_id : state.omega_ex;
+        let activeAl = V.renderPerspective === 'ideal' ? -(P.g/P.L)*activeTh : -(P.g/P.L)*Math.sin(activeTh);
+
+        UI.hTh.textContent = (activeTh * 180 / Math.PI).toFixed(1) + '°';
+        UI.hOm.textContent = activeOm.toFixed(2);
+        UI.hAl.textContent = activeAl.toFixed(2);
+        
+        let tIdeal = 2 * Math.PI * Math.sqrt(P.L / P.g);
+        UI.hTth.textContent = tIdeal.toFixed(2) + ' s';
+        
+        let pExp = V.renderPerspective === 'ideal' ? state.period_id : state.period_ex;
+        UI.hTexp.textContent = pExp ? pExp.toFixed(2) + ' s' : '-- s';
+
+        let mathErr = 0;
+        if (Math.abs(state.theta_ex) > 0.001) {
+            mathErr = Math.abs(Math.sin(state.theta_ex) - state.theta_ex) / Math.abs(state.theta_ex) * 100;
+        }
+        UI.hErrM.textContent = mathErr.toFixed(2) + '%';
+
+        // Calculate numeric drift to show RK4 accuracy over time
+        if (timeHist.length > 0) {
+            let currTE = timeHist[timeHist.length - 1].te;
+            let numErr = Math.abs((currTE - state.initialTE) / state.initialTE) * 100;
+            UI.hErrN.textContent = numErr.toFixed(4) + '%';
+        } else {
+            UI.hErrN.textContent = "0.000%";
+        }
+    }
+
+    function gameLoop(time) {
+        if (state.isRunning) {
+            let dt = (time - state.lastTimestamp) / 1000;
+            if (dt > 0.1) dt = 0.1; 
+            dt *= V.animSpeed;
+            
+            const steps = 10; const subDt = dt / steps;
+            for(let i=0; i<steps; i++) updatePhysics(subDt);
+            
+            recordHistory(); updateHUD();
+            state.lastTimestamp = time; drawAll(); 
+        }
+        requestAnimationFrame(gameLoop);
+    }
+
+    // --- Rendering Engine ---
+    function resolveOverlapsAndDraw(c, labels) {
+        const PADDING = 20; 
+        for (let iter=0; iter<5; iter++) {
+            for (let i=0; i<labels.length; i++) {
+                for (let j=i+1; j<labels.length; j++) {
+                    let l1 = labels[i], l2 = labels[j];
+                    let dx = l1.x - l2.x, dy = l1.y - l2.y;
+                    let dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < PADDING) {
+                        if (dist === 0) { dx=1; dy=1; dist=1.414; }
+                        let p = (PADDING - dist) / 2;
+                        l1.x += (dx/dist)*p; l1.y += (dy/dist)*p;
+                        l2.x -= (dx/dist)*p; l2.y -= (dy/dist)*p;
+                    }
+                }
+            }
+        }
+        c.font = 'bold 12px "JetBrains Mono", monospace';
+        c.textAlign = 'center'; c.textBaseline = 'middle';
+        
+        const isDark = document.documentElement.classList.contains('dark');
+        c.lineWidth = 3; c.strokeStyle = isDark ? '#050505' : '#f8fafc';
+        
+        for (let l of labels) { c.strokeText(l.text, l.x, l.y); c.fillStyle = l.color; c.fillText(l.text, l.x, l.y); }
+    }
+
+    function adaptScale(val, base) { return Math.sign(val) * Math.pow(Math.abs(val), 0.75) * base; }
+
+    // DPR removed from styling here because context.scale(dpr,dpr) naturally handles all stroke weights!
+    function drawArrow(c, fromx, fromy, tox, toy, color, style, label, pendingLabels) {
+        const dx = tox - fromx, dy = toy - fromy, len = Math.sqrt(dx*dx + dy*dy);
+        if (len < 2) return;
+        const angle = Math.atan2(dy, dx);
+
+        c.beginPath(); c.strokeStyle = color; c.lineWidth = style === 'thick' ? 2 : 1;
+        if (style === 'dashed') c.setLineDash([4, 4]); else if (style === 'dotted') c.setLineDash([2, 3]); else c.setLineDash([]);
+        c.moveTo(fromx, fromy); c.lineTo(tox, toy); c.stroke();
+
+        c.setLineDash([]); c.beginPath(); c.fillStyle = color;
+        c.moveTo(tox, toy);
+        c.lineTo(tox - 6 * Math.cos(angle - Math.PI/6), toy - 6 * Math.sin(angle - Math.PI/6));
+        c.lineTo(tox - 6 * Math.cos(angle + Math.PI/6), toy - 6 * Math.sin(angle + Math.PI/6));
+        c.fill();
+
+        if (label) pendingLabels.push({ text: label, x: tox + 14 * Math.cos(angle), y: toy + 14 * Math.sin(angle), color });
+    }
+
+    function drawPendulum(c, th, isPrimary, isIdeal, colors) {
+        const px = V.pivotX, py = V.pivotY;
+        const bx = px + (P.L * V.pixelsPerMeter) * Math.sin(th);
+        const by = py + (P.L * V.pixelsPerMeter) * Math.cos(th);
+        
+        c.beginPath(); c.moveTo(px, py); c.lineTo(bx, by);
+        c.strokeStyle = isPrimary ? colors.primaryLine : colors.ghostPendulum; 
+        c.lineWidth = isPrimary ? 2 : 1; c.stroke();
+
+        c.beginPath(); c.arc(bx, by, isPrimary ? 10 : 6, 0, Math.PI*2);
+        if (isPrimary) {
+            c.fillStyle = isIdeal ? colors.phaseTraceId : colors.primaryPendulum; 
+            c.fill(); c.lineWidth = 1.5; 
+            c.strokeStyle = isIdeal ? colors.phaseTraceId : colors.primaryPendulum; c.stroke();
+        } else {
+            c.fillStyle = colors.ghostPendulum; c.fill(); c.strokeStyle = colors.ghostPendulum; c.stroke();
+        }
+        return {bx, by};
+    }
+
+    function drawSimulation() {
+        const c = ctx.main;
+        const w = Containers.main.clientWidth;
+        const h = Containers.main.clientHeight;
+        const colors = getColors();
+        
+        c.fillStyle = colors.bg;
+        c.fillRect(0, 0, w, h);
+
+        if (V.showTrail && trailHist.length > 1) {
+            c.beginPath();
+            for (let i=0; i<trailHist.length; i++) { if(i===0) c.moveTo(trailHist[i].x, trailHist[i].y); else c.lineTo(trailHist[i].x, trailHist[i].y); }
+            c.strokeStyle = document.documentElement.classList.contains('dark') ? 'rgba(148, 163, 184, 0.4)' : 'rgba(148, 163, 184, 0.6)'; 
+            c.lineWidth = 2; c.stroke();
+        }
+
+        let primaryCoords;
+        if (V.renderPerspective === 'ideal') {
+            if (V.showGhost) drawPendulum(c, state.theta_ex, false, false, colors); 
+            primaryCoords = drawPendulum(c, state.theta_id, true, true, colors);    
+        } else {
+            if (V.showGhost) drawPendulum(c, state.theta_id, false, true, colors);  
+            primaryCoords = drawPendulum(c, state.theta_ex, true, false, colors);   
+        }
+
+        const bx = primaryCoords.bx, by = primaryCoords.by;
+        const activeTh = V.renderPerspective === 'ideal' ? state.theta_id : state.theta_ex;
+        const activeOm = V.renderPerspective === 'ideal' ? state.omega_id : state.omega_ex;
+
+        c.beginPath(); c.arc(V.pivotX, V.pivotY, 4, 0, Math.PI*2); c.fillStyle = colors.pivot; c.fill();
+
+        if (V.showBasis) {
+            const ext = 80, sinT = Math.sin(activeTh), cosT = Math.cos(activeTh);
+            c.beginPath(); c.setLineDash([4, 4]); c.strokeStyle = colors.axis; c.lineWidth = 1;
+            c.moveTo(bx - ext*sinT, by - ext*cosT); c.lineTo(bx + ext*sinT, by + ext*cosT);
+            c.moveTo(bx - ext*cosT, by + ext*sinT); c.lineTo(bx + ext*cosT, by - ext*sinT);
+            c.stroke(); c.setLineDash([]);
+            c.fillStyle = colors.text; c.font = `11px sans-serif`;
+            c.fillText('u_r', bx + (ext+5)*sinT, by + (ext+5)*cosT);
+            c.fillText('u_t', bx + (ext+5)*cosT, by - (ext+5)*sinT);
+        }
+
+        const bSc = 22; 
+        const sinT = Math.sin(activeTh), cosT = Math.cos(activeTh);
+        let labels = [];
+
+        if (V.showForces) {
+            const W = P.m * P.g;
+            drawArrow(c, bx, by, bx, by + adaptScale(W, bSc), '#f59e0b', 'dashed', 'mg', labels); // amber-500
+            const T = P.m * P.g * cosT + P.m * P.L * activeOm * activeOm;
+            drawArrow(c, bx, by, bx - adaptScale(T, bSc)*sinT, by - adaptScale(T, bSc)*cosT, '#10b981', 'solid', 'T', labels); // emerald-500
+        }
+
+        if (V.showNetForce) {
+            const Ft = V.renderPerspective === 'ideal' ? -P.m * P.g * activeTh : -P.m * P.g * sinT;
+            const Fr = -(P.m * P.L * activeOm * activeOm); 
+            const Fx = Ft * cosT + Fr * sinT; const Fy = Ft * (-sinT) + Fr * cosT;
+            
+            const magF = Math.sqrt(Fx * Fx + Fy * Fy);
+            if (magF > 0.001) {
+                const scaledMag = adaptScale(magF, bSc);
+                const Fx_scaled = (Fx / magF) * scaledMag;
+                const Fy_scaled = (Fy / magF) * scaledMag;
+                drawArrow(c, bx, by, bx + Fx_scaled, by + Fy_scaled, '#f43f5e', 'thick', 'ΣF', labels); // rose-500
+            }
+        }
+
+        if (V.showAccel) {
+            const at = V.renderPerspective === 'ideal' ? -P.g * activeTh : -P.g * sinT;
+            const ac = -(P.L * activeOm * activeOm); 
+            const ax = at * cosT + ac * sinT; const ay = at * (-sinT) + ac * cosT;
+            
+            const magA = Math.sqrt(ax * ax + ay * ay);
+            if (magA > 0.001) {
+                const scaledMag = adaptScale(magA, bSc);
+                const ax_scaled = (ax / magA) * scaledMag;
+                const ay_scaled = (ay / magA) * scaledMag;
+                drawArrow(c, bx, by, bx + ax_scaled, by + ay_scaled, '#3b82f6', 'dotted', 'a', labels); // blue-500
+            }
+        }
+
+        if (V.showVel) {
+            const v = P.L * activeOm;
+            drawArrow(c, bx, by, bx + adaptScale(v, bSc)*cosT, by + adaptScale(v, bSc)*(-sinT), '#d946ef', 'dashed', 'v', labels); // fuchsia-500
+        }
+
+        resolveOverlapsAndDraw(c, labels);
+    }
+
+    // --- Data Graphs ---
+    function drawPhaseSpace() {
+        const c = ctx.phase; 
+        const w = Containers.phase.clientWidth; 
+        const h = Containers.phase.clientHeight;
+        const colors = getColors();
+        
+        c.clearRect(0, 0, w, h);
+        if (w === 0 || h === 0) return;
+
+        // PERFECT CIRCLE FIX: Force a square drawing box inside the rectangular canvas
+        const padding = 20; 
+        const R = Math.min(w, h) / 2 - padding;
+        const cx = w / 2;
+        const cy = h / 2;
+        
+        // Exact normalisation based on fundamental initial bounds guarantees 1:1 circle ratio
+        const mapX = th => cx + (th / state.initialTh) * R;
+        const mapY = om => cy - (om / state.initialOm) * R;
+
+        // Draw perfect circle limit bounds 
+        c.strokeStyle = colors.grid; c.lineWidth = 1;
+        c.beginPath(); c.arc(cx, cy, R, 0, Math.PI*2); c.stroke();
+
+        // Draw internal crossed axes
+        c.strokeStyle = colors.axis; 
+        c.beginPath(); 
+        c.moveTo(cx - R - padding/2, cy); c.lineTo(cx + R + padding/2, cy); 
+        c.moveTo(cx, cy - R - padding/2); c.lineTo(cx, cy + R + padding/2); 
+        c.stroke();
+        
+        const drawTrace = (hist, color) => {
+            if (hist.length < 2) return;
+            c.beginPath();
+            for (let i=0; i<hist.length; i++) {
+                if(i===0) c.moveTo(mapX(hist[i].th), mapY(hist[i].om));
+                else c.lineTo(mapX(hist[i].th), mapY(hist[i].om));
+            }
+            c.strokeStyle = color; c.lineWidth = 1.5; c.stroke();
+        };
+
+        if (V.renderPerspective === 'ideal' || V.showGhost) drawTrace(phaseHistId, colors.phaseTraceId);
+        if (V.renderPerspective === 'real' || V.showGhost) drawTrace(phaseHistEx, colors.phaseTraceEx);
+
+        const activeTh = V.renderPerspective === 'ideal' ? state.theta_id : state.theta_ex;
+        const activeOm = V.renderPerspective === 'ideal' ? state.omega_id : state.omega_ex;
+        c.beginPath(); c.arc(mapX(activeTh), mapY(activeOm), 3.5, 0, Math.PI*2); c.fillStyle = colors.text; c.fill();
+    }
+
+    function drawEnergyGraph() {
+        const c = ctx.energy; 
+        const w = Containers.energy.clientWidth; 
+        const h = Containers.energy.clientHeight;
+        const colors = getColors();
+        
+        c.clearRect(0, 0, w, h);
+        if (timeHist.length < 2 || w === 0 || h === 0) return;
+
+        // OSCILLOSCOPE SCROLL FIX: Initial draw comes from left edge to right edge, then scrolls seamlessly
+        const windowTime = 10;
+        const tStart = Math.max(0, state.t - windowTime);
+        const mapX = t => {
+            if (state.t < windowTime) return (t / windowTime) * w;
+            return ((t - tStart) / windowTime) * w;
+        };
+        
+        // PERFECT CENTERING: Fixed margins that restrict rendering to the central 60% of the canvas height
+        const paddingY = 24;
+        const graphHeight = h - 2 * paddingY;
+        const topMargin = paddingY;
+        const mapY = e => topMargin + graphHeight - (e / state.initialTE) * graphHeight;
+
+        // Draw 0%, 50%, and 100% Horizontal Grid Lines
+        c.strokeStyle = colors.grid; c.lineWidth = 1;
+        c.setLineDash([4, 4]);
+        [0, 0.5, 1].forEach(frac => {
+            let y = mapY(state.initialTE * frac);
+            c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke();
+        });
+        c.setLineDash([]);
+
+        // Ensure wave overflow never occurs via clipping block
+        c.save();
+        c.beginPath(); c.rect(0, 0, w, h); c.clip();
+
+        // Draw Re-imagined Gradients under the wave
+        const drawLineFilled = (key, style, thick=1.5) => {
+            c.beginPath();
+            
+            // Find first valid point to drop anchor for the fill shape
+            let firstValidIdx = 0;
+            for(let i=0; i<timeHist.length; i++) {
+                if (timeHist[i].t >= tStart) { firstValidIdx = i; break; }
+            }
+
+            // Fill shape
+            c.moveTo(mapX(timeHist[firstValidIdx].t), mapY(0));
+            for (let i=firstValidIdx; i<timeHist.length; i++) {
+                c.lineTo(mapX(timeHist[i].t), mapY(timeHist[i][key]));
+            }
+            c.lineTo(mapX(timeHist[timeHist.length-1].t), mapY(0));
+            c.fillStyle = style.fill; c.fill();
+
+            // Crisp Line stroke
+            c.beginPath();
+            for (let i=firstValidIdx; i<timeHist.length; i++) {
+                if(i===firstValidIdx) c.moveTo(mapX(timeHist[i].t), mapY(timeHist[i][key])); 
+                else c.lineTo(mapX(timeHist[i].t), mapY(timeHist[i][key]));
+            }
+            c.strokeStyle = style.line; c.lineWidth = thick; c.stroke();
+
+            // Leading Edge Glowing Dot
+            const lastT = timeHist[timeHist.length-1].t;
+            const lastX = mapX(lastT);
+            const lastY = mapY(timeHist[timeHist.length-1][key]);
+            
+            c.beginPath(); c.arc(lastX, lastY, 3, 0, Math.PI*2);
+            c.fillStyle = style.line; c.fill();
+            c.beginPath(); c.arc(lastX, lastY, 1.5, 0, Math.PI*2);
+            c.fillStyle = '#fff'; c.fill();
+        };
+
+        drawLineFilled('pe', colors.energyPE); 
+        drawLineFilled('ke', colors.energyKE);
+
+        // Draw the solid TE (Total Energy) line overlaying everything
+        c.beginPath();
+        let firstValidIdx = 0;
+        for(let i=0; i<timeHist.length; i++) {
+            if (timeHist[i].t >= tStart) { firstValidIdx = i; break; }
+        }
+        for (let i=firstValidIdx; i<timeHist.length; i++) {
+            if(i===firstValidIdx) c.moveTo(mapX(timeHist[i].t), mapY(timeHist[i].te)); 
+            else c.lineTo(mapX(timeHist[i].t), mapY(timeHist[i].te));
+        }
+        c.strokeStyle = colors.energyTE; c.lineWidth = 2; c.stroke();
+
+        // Vertical Tracker Scanline at tNow
+        const lastX = mapX(state.t);
+        c.strokeStyle = colors.axis; c.lineWidth = 1; c.setLineDash([2, 2]);
+        c.beginPath(); c.moveTo(lastX, topMargin); c.lineTo(lastX, mapY(0)); c.stroke();
+        c.setLineDash([]);
+
+        c.restore();
+    }
+
+    function drawAll() { 
+        drawSimulation(); 
+        drawPhaseSpace(); 
+        drawEnergyGraph(); 
+    }
+
+    window.addEventListener('load', init);
+        
+</script>
 </body>
 </html>
