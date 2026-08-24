@@ -2,542 +2,665 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SHM simu</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Simple Harmonic Motion | AFEED</title>
+    <meta name="description" content="AFEED Physics Simulation - Simple Harmonic Motion">
+    
+    <!-- Tailwind CSS with Dark Mode Class enabled -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@500&display=swap');
-
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0B1120;
-            color: #E2E8F0;
-            margin: 0;
-            overflow: hidden;
-        }
-
-        .font-mono {
-            font-family: 'Roboto Mono', monospace;
-        }
-
-        /* Custom Range Slider Styling */
-        input[type=range] {
-            -webkit-appearance: none;
-            width: 100%;
-            height: 4px;
-            background: #1E293B;
-            border-radius: 2px;
-            outline: none;
-            transition: background 0.1s;
-        }
-
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #60A5FA;
-            cursor: pointer;
-            border: 2px solid #0B1120;
-            box-shadow: 0 0 0 2px #60A5FA;
-        }
-
-        input[type=range]::-moz-range-thumb {
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #60A5FA;
-            cursor: pointer;
-            border: 2px solid #0B1120;
-            box-shadow: 0 0 0 2px #60A5FA;
-        }
-        
-        /* Neon glow effects for canvas */
-        canvas {
-            display: block;
-        }
-
-        .glass-panel {
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(51, 65, 85, 0.5);
-        }
-    </style>
-</head>
-<body class="h-screen w-screen flex flex-col text-sm">
-
-    <!-- Top Navigation Bar -->
-    <header class="h-16 flex items-center justify-between px-6 border-b border-slate-800 bg-[#0B1120] z-20 shrink-0">
-        <div class="flex items-center gap-4">
-            <div class="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center text-blue-400 border border-slate-700">
-                <i data-lucide="zap" class="w-5 h-5 fill-blue-400/20"></i>
-            </div>
-            <div>
-                <h1 class="text-blue-400 font-bold tracking-wider text-sm flex gap-2">
-                    SHM <span class="text-white">simu</span>
-                </h1>
-                <p class="text-slate-500 text-[10px] tracking-widest uppercase font-semibold mt-0.5">Phase-Projector Synchronization</p>
-            </div>
-        </div>
-        
-        <div class="flex items-center gap-6">
-            <div class="flex items-center gap-2 font-mono text-xs">
-                <span class="text-slate-400">STATUS:</span>
-                <span id="statusText" class="text-blue-400 font-bold">UNDAMPED</span>
-            </div>
-            <button id="panelToggleBtn" class="flex items-center gap-2 px-4 py-2 rounded-md border border-slate-700 hover:bg-slate-800 transition-colors text-xs font-semibold tracking-wider text-slate-300">
-                <i data-lucide="menu" class="w-4 h-4"></i>
-                PANEL TOGGLE
-            </button>
-        </div>
-    </header>
-
-    <!-- Main Workspace -->
-    <main class="flex flex-1 relative overflow-hidden">
-        
-        <!-- Left Sidebar (System Params) -->
-        <aside id="sidebar" class="w-[340px] flex flex-col border-r border-slate-800 bg-[#0B1120] z-10 shrink-0 transition-transform duration-300 ease-in-out">
-            <div class="p-6 flex-1 flex flex-col gap-8">
-                
-                <div class="flex items-center gap-2 text-slate-400">
-                    <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
-                    <h2 class="text-[11px] font-bold tracking-widest uppercase">System Params</h2>
-                </div>
-
-                <div class="flex flex-col gap-6">
-                    <!-- Amplitude Slider -->
-                    <div class="flex flex-col gap-3">
-                        <div class="flex justify-between items-end">
-                            <label class="text-[10px] font-bold tracking-widest text-slate-300 uppercase">Amplitude (A)</label>
-                            <span id="ampValue" class="font-mono text-blue-400 text-xs font-bold">97</span>
-                        </div>
-                        <input type="range" id="ampSlider" min="10" max="180" value="97" step="1" oninput="updateControls()">
-                    </div>
-
-                    <!-- Spring Const Slider -->
-                    <div class="flex flex-col gap-3">
-                        <div class="flex justify-between items-end">
-                            <label class="text-[10px] font-bold tracking-widest text-slate-300 uppercase">Spring Const (K)</label>
-                            <span id="kValue" class="font-mono text-blue-400 text-xs font-bold">15.00</span>
-                        </div>
-                        <input type="range" id="kSlider" min="1.0" max="40.0" value="15.00" step="0.1" oninput="updateControls('K')">
-                    </div>
-
-                    <!-- Period Slider -->
-                    <div class="flex flex-col gap-3">
-                        <div class="flex justify-between items-end">
-                            <label class="text-[10px] font-bold tracking-widest text-slate-300 uppercase">Period (T)</label>
-                            <span id="tValue" class="font-mono text-blue-400 text-xs font-bold">3.24s</span>
-                        </div>
-                        <input type="range" id="tSlider" min="2.0" max="12.6" value="3.24" step="0.01" oninput="updateControls('T')">
-                    </div>
-                </div>
-
-            </div>
-            
-            <div class="p-6 border-t border-slate-800 flex flex-col gap-3 bg-[#0B1120]">
-                <button id="pauseBtn" class="w-full py-3 bg-blue-400 hover:bg-blue-300 text-[#0B1120] font-bold text-[11px] tracking-widest uppercase rounded-lg transition-colors">
-                    Pause Experiment
-                </button>
-                <button id="resetBtn" class="w-full py-3 bg-transparent hover:bg-slate-800 text-slate-300 border border-slate-700 font-bold text-[11px] tracking-widest uppercase rounded-lg transition-colors">
-                    Reset Sync
-                </button>
-            </div>
-        </aside>
-
-        <!-- Canvas Area -->
-        <div class="flex-1 relative bg-[#060B14]">
-            
-            <!-- Floating Badge -->
-            <div class="absolute top-6 left-1/2 -translate-x-1/2 z-10">
-                <div class="glass-panel px-4 py-1.5 rounded-full text-[10px] font-bold tracking-widest text-slate-400 uppercase">
-                    Integrated Synchronous View
-                </div>
-            </div>
-
-            <canvas id="simCanvas" class="w-full h-full"></canvas>
-            
-        </div>
-    </main>
-
     <script>
-        // Initialize Lucide icons
-        lucide.createIcons();
-
-        // Canvas Setup
-        const canvas = document.getElementById('simCanvas');
-        const ctx = canvas.getContext('2d');
-
-        // State variables
-        let isRunning = true;
-        let time = 0;
-        let dt = 1/60;
-        let waveHistory = [];
-        
-        // Physics / Visual Parameters
-        let A = 97;         // Base Amplitude
-        let K = 15.00;      // Stiffness (affects frequency)
-        let Z = 0;          // Damping (Hardcoded to 0 for pure SHM)
-        let T = 3.24;       // Period (Linked to K)
-
-        // UI Elements
-        const aSlider = document.getElementById('ampSlider');
-        const kSlider = document.getElementById('kSlider');
-        const tSlider = document.getElementById('tSlider');
-        const pauseBtn = document.getElementById('pauseBtn');
-        const resetBtn = document.getElementById('resetBtn');
-        const statusText = document.getElementById('statusText');
-        const sidebar = document.getElementById('sidebar');
-        const panelToggleBtn = document.getElementById('panelToggleBtn');
-
-        // Slider track coloring helper
-        function styleSliderTrack(slider) {
-            const val = (slider.value - slider.min) / (slider.max - slider.min) * 100;
-            slider.style.background = `linear-gradient(to right, #60A5FA ${val}%, #1E293B ${val}%)`;
-        }
-
-        // Update state from UI
-        function updateControls(source = null) {
-            A = parseFloat(aSlider.value);
-            
-            // Physics link: T = 4*pi / sqrt(K)  =>  K = (4*pi / T)^2
-            // The 4*pi factor rather than 2*pi accounts for the simulation's visual time scaling (omega = sqrt(K)*0.5)
-            
-            if (source === 'K') {
-                K = parseFloat(kSlider.value);
-                T = (4 * Math.PI) / Math.sqrt(K);
-                tSlider.value = T;
-            } else if (source === 'T') {
-                T = parseFloat(tSlider.value);
-                K = Math.pow((4 * Math.PI) / T, 2);
-                
-                // Clamp K visually to slider bounds
-                if (K > 40) K = 40;
-                if (K < 1) K = 1;
-                kSlider.value = K;
-            } else {
-                // Initial load
-                K = parseFloat(kSlider.value);
-                T = (4 * Math.PI) / Math.sqrt(K);
-                tSlider.value = T;
-            }
-
-            document.getElementById('ampValue').innerText = Math.round(A);
-            document.getElementById('kValue').innerText = K.toFixed(2);
-            document.getElementById('tValue').innerText = T.toFixed(2) + "s";
-
-            [aSlider, kSlider, tSlider].forEach(styleSliderTrack);
-
-            // Update Status text
-            statusText.innerText = "UNDAMPED";
-            statusText.className = "text-blue-400 font-bold";
-        }
-
-        // Resize handler
-        function resize() {
-            const rect = canvas.parentElement.getBoundingClientRect();
-            // Handle high DPI displays
-            const dpr = window.devicePixelRatio || 1;
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
-            ctx.scale(dpr, dpr);
-            canvas.style.width = `${rect.width}px`;
-            canvas.style.height = `${rect.height}px`;
-        }
-        window.addEventListener('resize', resize);
-
-        // Interaction bindings
-        pauseBtn.addEventListener('click', () => {
-            isRunning = !isRunning;
-            pauseBtn.innerText = isRunning ? "PAUSE EXPERIMENT" : "RESUME EXPERIMENT";
-            pauseBtn.className = isRunning 
-                ? "w-full py-3 bg-blue-400 hover:bg-blue-300 text-[#0B1120] font-bold text-[11px] tracking-widest uppercase rounded-lg transition-colors"
-                : "w-full py-3 bg-rose-500 hover:bg-rose-400 text-white font-bold text-[11px] tracking-widest uppercase rounded-lg transition-colors";
-        });
-
-        resetBtn.addEventListener('click', () => {
-            time = 0;
-            waveHistory = [];
-            if(!isRunning) {
-                draw(); // Force a redraw if paused
-            }
-        });
-
-        let sidebarOpen = true;
-        panelToggleBtn.addEventListener('click', () => {
-            sidebarOpen = !sidebarOpen;
-            if(sidebarOpen) {
-                sidebar.style.transform = 'translateX(0)';
-                sidebar.style.marginRight = '0';
-                sidebar.style.width = '340px';
-                setTimeout(resize, 300); // resize canvas after transition
-            } else {
-                sidebar.style.transform = 'translateX(-100%)';
-                sidebar.style.marginRight = '-340px';
-                setTimeout(resize, 300);
-            }
-        });
-
-        // Drawing loops and utilities
-        function drawVector(ctx, startX, startY, endY, color, label) {
-            const diff = endY - startY;
-            if (Math.abs(diff) < 2) return; // Minimum length to render
-            
-            const headlen = 6;
-            const dir = diff < 0 ? -1 : 1; // -1 is up, 1 is down
-            
-            // Draw Line
-            ctx.beginPath();
-            ctx.moveTo(startX, startY);
-            ctx.lineTo(startX, endY);
-            
-            // Draw Arrow Head
-            ctx.lineTo(startX - 4, endY - dir * headlen);
-            ctx.moveTo(startX, endY);
-            ctx.lineTo(startX + 4, endY - dir * headlen);
-            
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
-            ctx.lineJoin = 'round';
-            ctx.lineCap = 'round';
-            ctx.stroke();
-
-            // Draw Label
-            ctx.fillStyle = color;
-            ctx.font = 'bold 12px "Roboto Mono"';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = dir < 0 ? 'bottom' : 'top';
-            ctx.shadowColor = '#060B14';
-            ctx.shadowBlur = 4;
-            
-            // Use `+ dir * 14` to add extra space along the direction of the arrow
-            ctx.fillText(label, startX, endY + dir * 14);
-            
-            ctx.shadowBlur = 0; // reset
-        }
-
-        function drawGrid(width, height) {
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            const gridSize = 40;
-            for (let x = 0; x <= width; x += gridSize) {
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, height);
-            }
-            for (let y = 0; y <= height; y += gridSize) {
-                ctx.moveTo(0, y);
-                ctx.lineTo(width, y);
-            }
-            ctx.stroke();
-        }
-
-        function draw() {
-            const width = canvas.width / (window.devicePixelRatio || 1);
-            const height = canvas.height / (window.devicePixelRatio || 1);
-            
-            // Clear
-            ctx.clearRect(0, 0, width, height);
-            
-            // Grid
-            drawGrid(width, height);
-
-            // Calculate current physics state
-            // omega (angular frequency) based on K. Scale for visual speed.
-            const omega = Math.sqrt(K) * 0.5; 
-            const phase = time * omega;
-            
-            // Damping envelope: purely undamped SHM now
-            const currentA = A;
-
-            // Vertical displacement (Y)
-            const yDisp = currentA * Math.sin(phase);
-            const baseY = height / 2;
-            const currentY = baseY + yDisp;
-
-            // Layout coordinates
-            const phasorX = width * 0.20;
-            const springX = width * 0.45;
-            const waveStartX = width * 0.65;
-            
-            // Wave drawing horizontal speed (constant pixels per frame)
-            const waveSpeedX = 4; 
-
-            // Update History
-            if (isRunning) {
-                waveHistory.unshift(currentY);
-                // Remove points that fall off screen
-                const maxPoints = Math.ceil((width - waveStartX) / waveSpeedX) + 5;
-                if (waveHistory.length > maxPoints) {
-                    waveHistory.pop();
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans Bengali', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
                 }
             }
+        }
+    </script>
 
-            // --- 1. Connecting Dashed Line ---
-            ctx.beginPath();
-            ctx.setLineDash([4, 6]);
-            ctx.strokeStyle = 'rgba(96, 165, 250, 0.4)';
-            ctx.lineWidth = 1.5;
-            
-            // From phasor dot to wave start
-            const dotX = phasorX - currentA * Math.cos(phase); 
-            ctx.moveTo(dotX, currentY);
-            ctx.lineTo(waveStartX, currentY);
-            ctx.stroke();
-            ctx.setLineDash([]); // Reset dash
+    <!-- Lucide for icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=Noto+Sans+Bengali:wght@400;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* ======================================================================
+           AFEED GLOBAL STYLING
+         ====================================================================== */
+        :root {
+            --ease-smooth: cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
 
-            // --- 2. Phasor (Circle) & Polar Grid ---
-            const maxR = Math.max(0.1, currentA);
-            
-            // Draw Polar Grid
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-            ctx.lineWidth = 1;
-            ctx.fillStyle = 'rgba(148, 163, 184, 0.9)'; // slate-400 color
-            ctx.font = '10px "Roboto Mono"';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
+        body {
+            font-family: 'Inter', 'Noto Sans Bengali', sans-serif;
+            -webkit-user-select: none;
+            user-select: none;
+            /* Allow scrolling for potential future bottom panels */
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
 
-            const labelOffset = 18;
+        /* Glassmorphism */
+        .glass {
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+        .dark .glass { background: rgba(15, 23, 42, 0.8); }
+        html:not(.dark) .glass { background: rgba(255, 253, 250, 0.85); }
 
-            // Inner grid circle
-            ctx.beginPath();
-            ctx.arc(phasorX, baseY, maxR / 2, 0, Math.PI * 2);
-            ctx.stroke();
+        /* Brand Gradient */
+        .brand-text {
+            font-family: 'Inter', sans-serif;
+            font-weight: 900;
+            letter-spacing: -0.05em;
+        }
+        .brand-gradient {
+            display: inline-block;
+            padding-right: 0.08em; 
+        }
+        .dark .brand-gradient {
+            background: linear-gradient(135deg, #818cf8 0%, #c084fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        html:not(.dark) .brand-gradient {
+            background: linear-gradient(135deg, #ea580c 0%, #f59e0b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
 
-            // Grid spokes and angle labels
-            for (let deg = 0; deg < 360; deg += 30) {
-                const rad = deg * Math.PI / 180;
-                const cosRad = Math.cos(rad);
-                const sinRad = -Math.sin(rad); // Negative for standard math coords (90 degrees points UP)
+        /* Custom Scrollbar */
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.3); border-radius: 10px; }
+        .dark .custom-scroll::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.2); }
 
-                // Draw spoke
-                ctx.beginPath();
-                ctx.moveTo(phasorX, baseY);
-                ctx.lineTo(phasorX + maxR * cosRad, baseY + maxR * sinRad);
-                ctx.stroke();
+        /* Canvas overrides */
+        canvas {
+            display: block;
+            touch-action: none; /* Prevent scroll on canvas drag */
+        }
 
-                // Draw label
-                const labelX = phasorX + (maxR + labelOffset) * cosRad;
-                const labelY = baseY + (maxR + labelOffset) * sinRad;
-                ctx.fillText(`${deg}°`, labelX, labelY);
+        /* ======================================================================
+           REGULAR ACCENT SLIDERS
+         ====================================================================== */
+        input[type=range].afeed-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+            background: #cbd5e1;
+            transition: background 0.3s;
+        }
+        .dark input[type=range].afeed-slider {
+            background: #334155; 
+        }
+        
+        input[type=range].afeed-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            border: 2px solid #ea580c; 
+            box-shadow: -400px 0 0 390px rgba(234, 88, 12, 0.3); 
+            transition: transform 0.1s;
+        }
+        .dark input[type=range].afeed-slider::-webkit-slider-thumb {
+            border-color: #818cf8; 
+            box-shadow: -400px 0 0 390px rgba(129, 140, 248, 0.3); 
+        }
+        
+        input[type=range].afeed-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            border: 2px solid #ea580c;
+        }
+        .dark input[type=range].afeed-slider::-moz-range-thumb {
+            border-color: #818cf8;
+        }
+        
+        .slider-wrapper {
+            overflow: hidden;
+            border-radius: 10px;
+            padding: 8px 0;
+        }
+
+        .smooth-transition { transition: all 0.5s var(--ease-smooth); }
+    </style>
+    
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('afeed_theme') || 'dark';
+            if (savedTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
             }
+        })();
+    </script>
+</head>
+<body class="bg-[#fffdfa] text-slate-700 dark:bg-slate-950 dark:text-slate-300 transition-colors duration-500 min-h-screen flex flex-col">
 
-            // Outer boundary circle
-            ctx.beginPath();
-            ctx.arc(phasorX, baseY, maxR, 0, Math.PI * 2);
-            ctx.strokeStyle = '#334155';
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
+    <!-- TOP NAVIGATION BAR (Sticky) -->
+    <nav class="sticky top-0 z-50 border-b border-orange-100 dark:border-slate-800/80 glass transition-colors duration-500 h-16 shrink-0">
+        <div class="w-full px-4 md:px-6 h-full flex items-center justify-between">
+            <div class="flex items-center gap-3 md:gap-5">
+                <a href="index.html" class="p-2 rounded-xl border border-orange-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-orange-50/50 dark:hover:bg-slate-800 text-orange-600 dark:text-slate-400 hover:text-orange-700 dark:hover:text-indigo-400 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-orange-500/30 dark:focus:ring-indigo-500/30" aria-label="Back to Main Menu">
+                    <i data-lucide="arrow-left" class="w-5 h-5"></i>
+                </a>
+                <div class="flex items-center gap-3">
+                    <span class="brand-text text-2xl tracking-tight brand-gradient inline-block px-1 hidden md:block">AFEED</span>
+                    <div class="hidden md:block w-px h-6 bg-orange-200 dark:bg-slate-700"></div>
+                    <div>
+                        <h1 class="text-sm md:text-base font-bold text-slate-800 dark:text-white leading-tight">Simple Harmonic Motion</h1>
+                        <p class="text-[10px] md:text-xs text-slate-500 dark:text-slate-400 font-medium">Phase-Projector Synchronization</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2 md:gap-4">
+                <div class="hidden md:flex items-center gap-2 font-mono text-[10px] md:text-xs">
+                    <span class="text-slate-400 dark:text-slate-500">STATUS:</span>
+                    <span id="statusText" class="text-orange-600 dark:text-indigo-400 font-bold">ACTIVE</span>
+                </div>
+                <div class="hidden md:block w-px h-6 bg-orange-200 dark:bg-slate-700 mx-2"></div>
+                <button class="hidden sm:flex p-2.5 rounded-xl border border-orange-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-orange-50/50 dark:hover:bg-slate-800 text-orange-600 dark:text-slate-400 hover:text-orange-700 dark:hover:text-indigo-400 transition-all duration-300" title="Information">
+                    <i data-lucide="info" class="w-5 h-5"></i>
+                </button>
+                <button onclick="toggleTheme()" class="p-2.5 rounded-xl border border-orange-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-orange-50/50 dark:hover:bg-slate-800 text-orange-600 dark:text-slate-400 hover:text-orange-700 dark:hover:text-amber-400 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-orange-500/30 dark:focus:ring-indigo-500/30">
+                    <span id="theme-icon-container" class="flex items-center justify-center relative z-10"></span>
+                </button>
+                <button onclick="toggleFullscreen()" class="p-2.5 rounded-xl border border-orange-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-orange-50/50 dark:hover:bg-slate-800 text-orange-600 dark:text-slate-400 hover:text-orange-700 dark:hover:text-indigo-400 transition-all duration-300" title="Toggle Fullscreen">
+                    <i data-lucide="maximize" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
 
-            // Center dot
-            ctx.beginPath();
-            ctx.arc(phasorX, baseY, 3, 0, Math.PI * 2);
-            ctx.fillStyle = '#60A5FA';
-            ctx.fill();
+    <!-- MAIN CONTENT -->
+    <main class="flex flex-col w-full flex-1 relative">
+        
+        <!-- TOP SECTION: Sidebar & Canvas -->
+        <div class="flex w-full relative h-[calc(100svh-64px)] shrink-0 z-10">
+            
+            <!-- LEFT CONTROL PANEL -->
+            <aside id="sidebar" class="absolute md:relative z-30 h-full w-80 md:w-80 lg:w-[340px] bg-[#fffdfa] dark:bg-slate-950 border-r border-orange-100 dark:border-slate-800/80 shadow-2xl md:shadow-none flex flex-col shrink-0 transform transition-transform duration-300 ease-in-out md:translate-x-0">
+                
+                <div class="p-5 flex-1 overflow-y-auto custom-scroll flex flex-col gap-6">
+                    
+                    <div class="flex justify-between items-start">
+                        <div class="flex items-center gap-2 mb-1">
+                            <i data-lucide="sliders-horizontal" class="w-4 h-4 text-orange-600 dark:text-indigo-400"></i>
+                            <h3 class="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">System Params</h3>
+                        </div>
+                        <button onclick="toggleSidebar()" class="md:hidden p-2 rounded-lg text-slate-500 hover:bg-orange-50 dark:hover:bg-slate-800 transition-colors">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
 
-            // Radius Line
+                    <!-- Parameters Controls -->
+                    <div class="flex flex-col gap-6 bg-white dark:bg-slate-900/50 p-5 rounded-2xl border border-orange-100 dark:border-slate-800 relative z-10 transition-shadow">
+                        
+                        <!-- Amplitude Slider -->
+                        <div class="flex flex-col gap-2">
+                            <div class="flex justify-between items-end">
+                                <label class="text-[10px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase">Amplitude (A)</label>
+                                <span id="ampValue" class="font-mono text-orange-600 dark:text-indigo-400 text-xs font-bold bg-orange-50 dark:bg-slate-950 border border-orange-200 dark:border-slate-700 px-2 py-1 rounded">97</span>
+                            </div>
+                            <div class="slider-wrapper my-1">
+                                <input type="range" id="ampSlider" class="afeed-slider" min="10" max="180" value="97" step="1">
+                            </div>
+                        </div>
+
+                        <!-- Spring Const Slider -->
+                        <div class="flex flex-col gap-2 pt-4 border-t border-slate-100 dark:border-slate-800/80">
+                            <div class="flex justify-between items-end">
+                                <label class="text-[10px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase">Spring Const (K)</label>
+                                <span id="kValue" class="font-mono text-orange-600 dark:text-indigo-400 text-xs font-bold bg-orange-50 dark:bg-slate-950 border border-orange-200 dark:border-slate-700 px-2 py-1 rounded">15.00</span>
+                            </div>
+                            <div class="slider-wrapper my-1">
+                                <input type="range" id="kSlider" class="afeed-slider" min="1.0" max="40.0" value="15.00" step="0.1">
+                            </div>
+                        </div>
+
+                        <!-- Period Slider -->
+                        <div class="flex flex-col gap-2 pt-4 border-t border-slate-100 dark:border-slate-800/80">
+                            <div class="flex justify-between items-end">
+                                <label class="text-[10px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase">Period (T)</label>
+                                <span id="tValue" class="font-mono text-orange-600 dark:text-indigo-400 text-xs font-bold bg-orange-50 dark:bg-slate-950 border border-orange-200 dark:border-slate-700 px-2 py-1 rounded">3.24s</span>
+                            </div>
+                            <div class="slider-wrapper my-1">
+                                <input type="range" id="tSlider" class="afeed-slider" min="2.0" max="12.6" value="3.24" step="0.01">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-auto space-y-3">
+                        <button id="pauseBtn" class="w-full py-3 bg-orange-100 text-orange-700 hover:bg-orange-200 border border-orange-200 dark:bg-indigo-500/20 dark:text-indigo-400 dark:border-indigo-500/30 dark:hover:bg-indigo-500/30 font-bold text-[11px] tracking-widest uppercase rounded-xl transition-all shadow-sm">
+                            Pause Experiment
+                        </button>
+                        <button id="resetBtn" class="w-full py-3 bg-white dark:bg-slate-900/50 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 border border-orange-100 dark:border-slate-700 font-bold text-[11px] tracking-widest uppercase rounded-xl transition-all shadow-sm">
+                            Reset Sync
+                        </button>
+                    </div>
+
+                </div>
+            </aside>
+
+            <!-- MAIN SIMULATION CANVAS -->
+            <div id="canvas-container" class="flex-1 relative bg-slate-100 dark:bg-[#060B14] overflow-hidden min-h-0 border-b border-orange-100 dark:border-slate-800/80 shadow-inner">
+                
+                <button id="sidebar-toggle-btn" onclick="toggleSidebar()" class="md:hidden absolute top-4 left-4 z-20 p-2.5 glass rounded-xl shadow-lg border border-orange-100 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:text-orange-600 dark:hover:text-indigo-400 transition-colors">
+                    <i data-lucide="panel-left-open" class="w-5 h-5"></i>
+                </button>
+
+                <!-- Floating Badge -->
+                <div class="absolute top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none transition-colors">
+                    <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md px-4 py-1.5 rounded-full text-[10px] font-bold tracking-widest text-slate-500 dark:text-slate-400 uppercase border border-orange-100 dark:border-slate-700 shadow-md">
+                        Integrated Synchronous View
+                    </div>
+                </div>
+
+                <canvas id="simCanvas" class="absolute inset-0 w-full h-full"></canvas>
+            </div>
+            
+        </div>
+
+    </main>
+
+<script>
+    // --- UI Setup & OS Theme ---
+    function applyThemeIcons() {
+        const isDark = document.documentElement.classList.contains('dark');
+        const themeIconContainer = document.getElementById('theme-icon-container');
+        if (isDark) {
+            themeIconContainer.innerHTML = `<i data-lucide="sun" class="w-5 h-5 text-amber-400"></i>`;
+        } else {
+            themeIconContainer.innerHTML = `<i data-lucide="moon" class="w-5 h-5 text-orange-600"></i>`;
+        }
+        if(window.lucide) lucide.createIcons();
+    }
+
+    function toggleTheme() {
+        const isDark = document.documentElement.classList.contains('dark');
+        if(isDark) {
+            document.documentElement.classList.remove('dark');
+            localStorage.setItem('afeed_theme', 'light');
+        } else {
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('afeed_theme', 'dark');
+        }
+        applyThemeIcons();
+    }
+
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => console.log(err));
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    const sidebar = document.getElementById('sidebar');
+    let isSidebarOpen = window.innerWidth >= 768; 
+    function toggleSidebar() {
+        isSidebarOpen = !isSidebarOpen;
+        if (isSidebarOpen) {
+            sidebar.classList.remove('-translate-x-full');
+        } else {
+            sidebar.classList.add('-translate-x-full');
+        }
+        setTimeout(resize, 300); // Trigger canvas resize after sidebar animation
+    }
+    
+    // --- Physics & Canvas Logic ---
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    const container = document.getElementById('canvas-container');
+
+    // State variables
+    let isRunning = true;
+    let time = 0;
+    let dt = 1/60;
+    let waveHistory = [];
+    
+    // Physics Parameters
+    let A = 97;         
+    let K = 15.00;      
+    let T = 3.24;       
+
+    // UI Elements bindings
+    const aSlider = document.getElementById('ampSlider');
+    const kSlider = document.getElementById('kSlider');
+    const tSlider = document.getElementById('tSlider');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const statusText = document.getElementById('statusText');
+
+    function updateControls(source = null) {
+        A = parseFloat(aSlider.value);
+        
+        if (source === 'K') {
+            K = parseFloat(kSlider.value);
+            T = (4 * Math.PI) / Math.sqrt(K);
+            tSlider.value = T;
+        } else if (source === 'T') {
+            T = parseFloat(tSlider.value);
+            K = Math.pow((4 * Math.PI) / T, 2);
+            if (K > 40) K = 40;
+            if (K < 1) K = 1;
+            kSlider.value = K;
+        } else {
+            K = parseFloat(kSlider.value);
+            T = (4 * Math.PI) / Math.sqrt(K);
+            tSlider.value = T;
+        }
+
+        document.getElementById('ampValue').innerText = Math.round(A);
+        document.getElementById('kValue').innerText = K.toFixed(2);
+        document.getElementById('tValue').innerText = T.toFixed(2) + "s";
+    }
+
+    [aSlider, kSlider, tSlider].forEach(slider => {
+        slider.addEventListener('input', (e) => {
+            if(e.target === aSlider) updateControls('A');
+            else if(e.target === kSlider) updateControls('K');
+            else updateControls('T');
+        });
+    });
+
+    function resize() {
+        const rect = container.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
+        ctx.scale(dpr, dpr);
+    }
+    window.addEventListener('resize', () => {
+        if(window.innerWidth >= 768 && !isSidebarOpen) { toggleSidebar(); } 
+        else if (window.innerWidth < 768 && isSidebarOpen) { toggleSidebar(); }
+        resize();
+    });
+
+    // Interaction bindings
+    pauseBtn.addEventListener('click', () => {
+        isRunning = !isRunning;
+        const isDark = document.documentElement.classList.contains('dark');
+        
+        pauseBtn.innerText = isRunning ? "PAUSE EXPERIMENT" : "RESUME EXPERIMENT";
+        
+        if (isRunning) {
+            statusText.innerText = "ACTIVE";
+            statusText.className = "text-orange-600 dark:text-indigo-400 font-bold";
+            pauseBtn.className = "w-full py-3 bg-orange-100 text-orange-700 hover:bg-orange-200 border border-orange-200 dark:bg-indigo-500/20 dark:text-indigo-400 dark:border-indigo-500/30 dark:hover:bg-indigo-500/30 font-bold text-[11px] tracking-widest uppercase rounded-xl transition-all shadow-sm";
+        } else {
+            statusText.innerText = "PAUSED";
+            statusText.className = "text-amber-500 font-bold";
+            pauseBtn.className = "w-full py-3 bg-rose-100 text-rose-700 hover:bg-rose-200 border border-rose-200 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/30 dark:hover:bg-rose-500/30 font-bold text-[11px] tracking-widest uppercase rounded-xl transition-all shadow-sm";
+        }
+    });
+
+    resetBtn.addEventListener('click', () => {
+        time = 0;
+        waveHistory = [];
+    });
+
+    // Dynamic Theming Colors for Canvas
+    function getColors() {
+        const isDark = document.documentElement.classList.contains('dark');
+        return {
+            bg: isDark ? '#060B14' : '#f8fafc',
+            grid: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.05)',
+            text: isDark ? 'rgba(148, 163, 184, 0.9)' : '#64748b',
+            accent: isDark ? '#60A5FA' : '#ea580c', // Blue / Orange
+            accentShadow: isDark ? 'rgba(96, 165, 250, 0.5)' : 'rgba(234, 88, 12, 0.3)',
+            spring: isDark ? '#475569' : '#94a3b8',
+            mass: isDark ? '#0F172A' : '#ffffff',
+            wave: isDark ? '#818CF8' : '#f59e0b', // Indigo / Amber
+            velVector: isDark ? '#10B981' : '#059669', // Emerald
+            accVector: isDark ? '#F59E0B' : '#d97706', // Amber
+        };
+    }
+
+    // Drawing loops and utilities
+    function drawVector(ctx, startX, startY, endY, color, label) {
+        const diff = endY - startY;
+        if (Math.abs(diff) < 2) return; 
+        
+        const headlen = 5;
+        const dir = diff < 0 ? -1 : 1; 
+        
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(startX, endY);
+        
+        // Refined, sharper arrow heads
+        ctx.lineTo(startX - 3.5, endY - dir * headlen);
+        ctx.moveTo(startX, endY);
+        ctx.lineTo(startX + 3.5, endY - dir * headlen);
+        
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2; // Fixed thickness preventing the "fat" look
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.stroke();
+
+        ctx.fillStyle = color;
+        ctx.font = 'bold 11px "JetBrains Mono"';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = dir < 0 ? 'bottom' : 'top';
+        ctx.fillText(label, startX, endY + dir * 10);
+    }
+
+    function drawGrid(w, h, color) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        const gridSize = 40;
+        for (let x = 0; x <= w; x += gridSize) {
+            ctx.moveTo(x, 0); ctx.lineTo(x, h);
+        }
+        for (let y = 0; y <= h; y += gridSize) {
+            ctx.moveTo(0, y); ctx.lineTo(w, y);
+        }
+        ctx.stroke();
+    }
+
+    function draw() {
+        const dpr = window.devicePixelRatio || 1;
+        const w = canvas.width / dpr;
+        const h = canvas.height / dpr;
+        const c = getColors();
+        
+        ctx.fillStyle = c.bg;
+        ctx.fillRect(0, 0, w, h);
+        drawGrid(w, h, c.grid);
+
+        const omega = Math.sqrt(K) * 0.5; 
+        const phase = time * omega;
+        const currentA = A;
+
+        const yDisp = currentA * Math.sin(phase);
+        const baseY = h / 2;
+        const currentY = baseY + yDisp;
+
+        // Dynamic layout based on screen width
+        let phasorX = w * 0.20;
+        let springX = w * 0.45;
+        let waveStartX = w * 0.65;
+        
+        if (w < 600) { // Mobile layout adjustment
+            phasorX = w * 0.25;
+            springX = w * 0.75;
+            waveStartX = w * 1.5; // Hide wave on extremely small screens
+        }
+
+        const waveSpeedX = 3; 
+
+        if (isRunning) {
+            waveHistory.unshift(currentY);
+            const maxPoints = Math.ceil((w - waveStartX) / waveSpeedX) + 5;
+            if (waveHistory.length > maxPoints) waveHistory.pop();
+        }
+
+        // 1. Connecting Dashed Line
+        ctx.beginPath();
+        ctx.setLineDash([4, 6]);
+        ctx.strokeStyle = c.accentShadow;
+        ctx.lineWidth = 1.5;
+        
+        const dotX = phasorX - currentA * Math.cos(phase); 
+        ctx.moveTo(dotX, currentY);
+        ctx.lineTo(w < 600 ? springX : waveStartX, currentY);
+        ctx.stroke();
+        ctx.setLineDash([]); 
+
+        // 2. Phasor (Circle) & Polar Grid
+        const maxR = Math.max(0.1, currentA);
+        
+        ctx.strokeStyle = c.grid;
+        ctx.lineWidth = 1;
+        ctx.fillStyle = c.text; 
+        ctx.font = '9px "JetBrains Mono"';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        const labelOffset = 18;
+
+        ctx.beginPath();
+        ctx.arc(phasorX, baseY, maxR / 2, 0, Math.PI * 2);
+        ctx.stroke();
+
+        for (let deg = 0; deg < 360; deg += 30) {
+            const rad = deg * Math.PI / 180;
+            const cosRad = Math.cos(rad);
+            const sinRad = -Math.sin(rad); 
+
             ctx.beginPath();
             ctx.moveTo(phasorX, baseY);
-            ctx.lineTo(dotX, currentY);
-            ctx.strokeStyle = '#60A5FA';
-            ctx.lineWidth = 2;
+            ctx.lineTo(phasorX + maxR * cosRad, baseY + maxR * sinRad);
             ctx.stroke();
 
-            // Moving dot on circle
-            ctx.beginPath();
-            ctx.arc(dotX, currentY, 5, 0, Math.PI * 2);
-            ctx.fillStyle = '#60A5FA';
-            ctx.shadowColor = '#60A5FA';
-            ctx.shadowBlur = 10;
-            ctx.fill();
-            ctx.shadowBlur = 0; // reset
+            const labelX = phasorX + (maxR + labelOffset) * cosRad;
+            const labelY = baseY + (maxR + labelOffset) * sinRad;
+            ctx.fillText(`${deg}°`, labelX, labelY);
+        }
 
-            // --- 3. Spring and Mass ---
-            const topAnchorY = baseY - 200;
-            const massSize = 40;
-            const massTopY = currentY - massSize/2;
+        ctx.beginPath();
+        ctx.arc(phasorX, baseY, maxR, 0, Math.PI * 2);
+        ctx.strokeStyle = c.spring;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
 
-            // Draw Spring
+        ctx.beginPath();
+        ctx.arc(phasorX, baseY, 3, 0, Math.PI * 2);
+        ctx.fillStyle = c.accent;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(phasorX, baseY);
+        ctx.lineTo(dotX, currentY);
+        ctx.strokeStyle = c.accent;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(dotX, currentY, 5, 0, Math.PI * 2);
+        ctx.fillStyle = c.accent;
+        ctx.shadowColor = c.accent;
+        ctx.shadowBlur = 8;
+        ctx.fill();
+        ctx.shadowBlur = 0; 
+
+        // 3. Spring and Mass
+        const topAnchorY = baseY - 200;
+        const massSize = 40;
+        const massTopY = currentY - massSize/2;
+
+        ctx.beginPath();
+        ctx.moveTo(springX, topAnchorY);
+        ctx.lineTo(springX, topAnchorY + 20); 
+        
+        const numCoils = 14;
+        const activeSpringH = massTopY - topAnchorY - 40;
+        const step = activeSpringH / numCoils;
+        const zigZagW = 16;
+        
+        for(let i=0; i<numCoils; i++) {
+            let xOff = (i % 2 === 0) ? zigZagW : -zigZagW;
+            ctx.lineTo(springX + xOff, topAnchorY + 20 + step * (i + 0.5));
+        }
+        
+        ctx.lineTo(springX, massTopY - 20); 
+        ctx.lineTo(springX, massTopY);
+        
+        ctx.strokeStyle = c.spring;
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.rect(springX - massSize/2, currentY - massSize/2, massSize, massSize);
+        ctx.fillStyle = c.mass;
+        ctx.fill();
+        ctx.strokeStyle = c.accent;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = c.accentShadow;
+        ctx.shadowBlur = 10;
+        ctx.stroke();
+        ctx.shadowBlur = 0; 
+
+        // Vector Overlay (Velocity & Acceleration)
+        const v = currentA * omega * Math.cos(phase);
+        const a = currentA * (-omega * omega) * Math.sin(phase);
+
+        const vVisualScale = 0.4;
+        const aVisualScale = 0.15;
+
+        // Thin, sharp vectors
+        drawVector(ctx, springX - 28, currentY, currentY + (v * vVisualScale), c.velVector, 'v');
+        drawVector(ctx, springX + 28, currentY, currentY + (a * aVisualScale), c.accVector, 'a');
+
+        // 4. The Wave (Hidden on very small screens)
+        if (w >= 600 && waveHistory.length > 0) {
             ctx.beginPath();
-            ctx.moveTo(springX, topAnchorY);
-            ctx.lineTo(springX, topAnchorY + 20); // Top straight segment
-            
-            const numCoils = 14;
-            const activeSpringH = massTopY - topAnchorY - 40;
-            const step = activeSpringH / numCoils;
-            const zigZagW = 16;
-            
-            for(let i=0; i<numCoils; i++) {
-                let xOff = (i % 2 === 0) ? zigZagW : -zigZagW;
-                ctx.lineTo(springX + xOff, topAnchorY + 20 + step * (i + 0.5));
+            ctx.moveTo(waveStartX, waveHistory[0]);
+            for (let i = 1; i < waveHistory.length; i++) {
+                let x = waveStartX + i * waveSpeedX;
+                ctx.lineTo(x, waveHistory[i]);
             }
-            
-            ctx.lineTo(springX, massTopY - 20); // Bottom straight segment
-            ctx.lineTo(springX, massTopY);
-            
-            ctx.strokeStyle = '#475569';
+            ctx.strokeStyle = c.wave;
             ctx.lineWidth = 2.5;
             ctx.lineJoin = 'round';
             ctx.stroke();
-
-            // Draw Mass
-            ctx.beginPath();
-            ctx.rect(springX - massSize/2, currentY - massSize/2, massSize, massSize);
-            ctx.fillStyle = '#0F172A';
-            ctx.fill();
-            ctx.strokeStyle = '#60A5FA';
-            ctx.lineWidth = 2;
-            ctx.shadowColor = 'rgba(96, 165, 250, 0.5)';
-            ctx.shadowBlur = 15;
-            ctx.stroke();
-            ctx.shadowBlur = 0; // reset
-
-            // --- Vector Overlay (Velocity & Acceleration) ---
-            
-            // dy/dt (Velocity)
-            const v = currentA * omega * Math.cos(phase);
-            // dv/dt (Acceleration)
-            const a = currentA * (-omega * omega) * Math.sin(phase);
-
-            // Visual scaling so the vectors fit neatly on screen
-            const vVisualScale = 0.4;
-            const aVisualScale = 0.15;
-
-            // Velocity Vector (Emerald Green)
-            drawVector(ctx, springX - 30, currentY, currentY + (v * vVisualScale), '#10B981', 'v');
-            
-            // Acceleration Vector (Amber Orange)
-            drawVector(ctx, springX + 30, currentY, currentY + (a * aVisualScale), '#F59E0B', 'a');
-
-            // --- 4. The Wave ---
-            if (waveHistory.length > 0) {
-                ctx.beginPath();
-                ctx.moveTo(waveStartX, waveHistory[0]);
-                for (let i = 1; i < waveHistory.length; i++) {
-                    let x = waveStartX + i * waveSpeedX;
-                    ctx.lineTo(x, waveHistory[i]);
-                }
-                ctx.strokeStyle = '#818CF8';
-                ctx.lineWidth = 2.5;
-                ctx.lineJoin = 'round';
-                ctx.stroke();
-            }
-
-            if (isRunning) {
-                time += dt;
-            }
-            
-            requestAnimationFrame(draw);
         }
 
-        // Init
+        if (isRunning) time += dt;
+        requestAnimationFrame(draw);
+    }
+
+    // Init
+    window.addEventListener('load', () => {
+        applyThemeIcons();
         updateControls();
         resize();
         requestAnimationFrame(draw);
+    });
 
-    </script>
+</script>
 </body>
 </html>
-
