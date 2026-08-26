@@ -51,9 +51,9 @@
         const { useState, useEffect, useRef } = React;
 
         // ==========================================
-        // 1. Google Web App URL
+        // 1. Google Web App URL (আপনার Apps Script URL এখানে দিন)
         // ==========================================
-        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxIwaWdKt6-XfSOjqSVfs731aIHQLHZuURXCYKpv0rYQ-RhVcLMe3HuQ4OmVgj4A-Yv/exec"; 
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzJgOdfDLi1xCLTQzQLY8Mn4YsE8oiPO8CmIJ9n6TzNJ396JcMcKZ12xFhDhUnKm2kn/exec"; 
         
         // --- CSV Helper Functions ---
         function encodeCSV(val) {
@@ -102,8 +102,6 @@
             const [activePaper, setActivePaper] = useState('All');
             const [viewMode, setViewMode] = useState('tiles'); 
             const [searchTerm, setSearchTerm] = useState('');
-            const [statusFilter, setStatusFilter] = useState('All Statuses');
-            const [confidenceFilter, setConfidenceFilter] = useState('All Levels');
             
             const [loading, setLoading] = useState(false);
             const [pendingUpdates, setPendingUpdates] = useState({});
@@ -275,6 +273,7 @@
                 
                 const headers = ["id", "subject", "paper", "chapterNo", "titleEn", "titleBn", "status", 
                                  "theory", "textbook", "written", "questionBank", "mistakeCorrection", "conceptBook", "lectureSlide", 
+                                 "engMcq", "varsityMcq",
                                  "qbSolved", "revisions", "writtenScore", "mcqScore", "confidence"];
                 
                 let csvContent = headers.join(',') + '\n';
@@ -285,6 +284,7 @@
                         ch.id, ch.subject, ch.paper, ch.chapterNo, ch.titleEn, ch.titleBn, ch.status,
                         safeMilestones.theory || false, safeMilestones.textbook || false, safeMilestones.written || false, safeMilestones.questionBank || false,
                         safeMilestones.mistakeCorrection || false, safeMilestones.conceptBook || false, safeMilestones.lectureSlide || false,
+                        safeMilestones.engMcq || false, safeMilestones.varsityMcq || false,
                         ch.qbSolved || 0, ch.revisions || 0, ch.writtenScore || '', ch.mcqScore || '', ch.confidence || 'Unrated'
                     ];
                     csvContent += row.map(encodeCSV).join(',') + '\n';
@@ -316,17 +316,17 @@
                     }
 
                     let newPending = { ...pendingUpdates };
-                    let updatedChapters = JSON.parse(JSON.stringify(chapters)); // Deep clone for safe mutation
+                    let updatedChapters = JSON.parse(JSON.stringify(chapters)); 
 
                     for (let i = 1; i < rows.length; i++) {
                         const row = rows[i];
-                        if (row.length < 2) continue; // skip empty rows
+                        if (row.length < 2) continue;
 
                         const rowData = {};
                         headers.forEach((h, idx) => rowData[h] = row[idx]);
 
                         const chapterIndex = updatedChapters.findIndex(c => String(c.id) === String(rowData.id));
-                        if (chapterIndex === -1) continue; // Skip if id doesn't match existing data
+                        if (chapterIndex === -1) continue; 
 
                         const existing = updatedChapters[chapterIndex];
                         if(!existing.milestones) existing.milestones = {};
@@ -334,7 +334,6 @@
                         let chUpdates = {};
                         let hasChanges = false;
 
-                        // Helper to safely parse and detect changes
                         const checkUpdate = (field, type = 'string') => {
                             let val = rowData[field];
                             if (val === undefined || val === null) return;
@@ -342,7 +341,7 @@
                             if (type === 'boolean') val = (String(val).toLowerCase() === 'true');
                             if (type === 'number') val = Number(val) || 0;
 
-                            const milestoneFields = ['theory', 'textbook', 'written', 'questionBank', 'mistakeCorrection', 'conceptBook', 'lectureSlide'];
+                            const milestoneFields = ['theory', 'textbook', 'written', 'questionBank', 'mistakeCorrection', 'conceptBook', 'lectureSlide', 'engMcq', 'varsityMcq'];
                             
                             if (milestoneFields.includes(field)) {
                                 if (existing.milestones[field] !== val) {
@@ -368,6 +367,8 @@
                         checkUpdate('mistakeCorrection', 'boolean');
                         checkUpdate('conceptBook', 'boolean');
                         checkUpdate('lectureSlide', 'boolean');
+                        checkUpdate('engMcq', 'boolean');
+                        checkUpdate('varsityMcq', 'boolean');
                         checkUpdate('qbSolved', 'number');
                         checkUpdate('revisions', 'number');
                         checkUpdate('writtenScore', 'string');
@@ -386,7 +387,7 @@
                     setPendingUpdates(newPending);
                     if (Object.keys(newPending).length > 0) setSyncStatus('unsaved');
                     
-                    event.target.value = null; // reset input
+                    event.target.value = null;
                 };
                 reader.readAsText(file);
             };
@@ -420,14 +421,23 @@
             const filteredChapters = chapters.filter(ch => {
                 if (activeSubject !== 'All Subjects' && ch.subject !== activeSubject) return false;
                 if (activePaper !== 'All' && ch.paper !== activePaper) return false;
-                if (statusFilter !== 'All Statuses' && ch.status !== statusFilter) return false;
-                if (confidenceFilter !== 'All Levels' && ch.confidence !== confidenceFilter) return false;
                 const searchLower = searchTerm.toLowerCase();
                 return ch.titleEn.toLowerCase().includes(searchLower) || ch.titleBn.includes(searchLower);
             });
 
-            // Action Queue checks for 'Started'
-            const actionQueueChapters = chapters.filter(ch => ch.status === 'Started' || ch.confidence === 'Low');
+            // Action Queues Implementation
+            // 1. Weak Topics (Low Confidence) - Shows ALL chapters marked as 'Low'
+            const weakTopicsChapters = chapters
+                .filter(ch => ch.confidence === 'Low')
+                .sort((a, b) => a.subject.localeCompare(b.subject));
+            
+            const weakTopicIds = new Set(weakTopicsChapters.map(c => c.id));
+
+            // 2. In Progress (Started only) - Shows max 6 chapters
+            // Excludes 'Paused' and 'Low Confidence' (Weak Topics)
+            const inProgressChapters = chapters
+                .filter(ch => ch.status === 'Started' && !weakTopicIds.has(ch.id))
+                .sort((a, b) => a.subject.localeCompare(b.subject));
 
             // ==========================================
             // SECURE LOGIN SCREEN
@@ -657,14 +667,36 @@
                                     </div>
                                 </div>
 
+                                {/* WEAK TOPICS SECTION (Shows all) */}
                                 <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm dark:shadow-lg">
                                     <div className="flex items-center justify-between mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
-                                        <h2 className="text-lg font-bold flex items-center gap-2 text-slate-800 dark:text-slate-200"><i className="fa-solid fa-clock-rotate-left text-orange-500"></i> Action Queue: Weak Topics & In-Progress</h2>
+                                        <h2 className="text-lg font-bold flex items-center gap-2 text-rose-600 dark:text-rose-500">
+                                            <i className="fa-solid fa-triangle-exclamation"></i> Priority Focus: Weak Topics (Low Confidence)
+                                        </h2>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                                        {actionQueueChapters.slice(0, 6).map(chapter => <ChapterCard key={chapter.id} chapter={chapter} onUpdate={updateChapter} subjectColor={getSubjectColor(chapter.subject)} />)}
+                                        {weakTopicsChapters.map(chapter => <ChapterCard key={chapter.id} chapter={chapter} onUpdate={updateChapter} subjectColor={getSubjectColor(chapter.subject)} />)}
+                                        {weakTopicsChapters.length === 0 && (
+                                            <div className="col-span-full py-6 text-center text-slate-500 font-medium">No low confidence chapters. Great job!</div>
+                                        )}
                                     </div>
                                 </div>
+
+                                {/* IN PROGRESS SECTION (Shows max 6, excludes Paused/Weak) */}
+                                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm dark:shadow-lg">
+                                    <div className="flex items-center justify-between mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+                                        <h2 className="text-lg font-bold flex items-center gap-2 text-amber-600 dark:text-amber-500">
+                                            <i className="fa-solid fa-person-digging"></i> Action Queue: In Progress (Max 6)
+                                        </h2>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                                        {inProgressChapters.slice(0, 6).map(chapter => <ChapterCard key={chapter.id} chapter={chapter} onUpdate={updateChapter} subjectColor={getSubjectColor(chapter.subject)} />)}
+                                        {inProgressChapters.length === 0 && (
+                                            <div className="col-span-full py-6 text-center text-slate-500 font-medium">No active un-paused chapters found.</div>
+                                        )}
+                                    </div>
+                                </div>
+
                             </div>
                         )}
 
@@ -726,43 +758,48 @@
                                         <table className="w-full text-left text-sm whitespace-nowrap text-slate-700 dark:text-slate-300">
                                             <thead className="bg-slate-100 dark:bg-slate-950 text-slate-500 font-bold uppercase text-[10px] border-b border-slate-200 dark:border-slate-800 tracking-wider">
                                                 <tr>
-                                                    <th className="px-5 py-4">Chapter</th>
-                                                    <th className="px-5 py-4">Status</th>
-                                                    <th className="px-5 py-4 text-center">Theory</th>
-                                                    <th className="px-5 py-4 text-center">Textbook</th>
-                                                    <th className="px-5 py-4 text-center">CQ</th>
-                                                    <th className="px-5 py-4 text-center">Mistakes</th>
-                                                    <th className="px-5 py-4 text-center">Concept Bk</th>
-                                                    <th className="px-5 py-4 text-center">Slides</th>
-                                                    <th className="px-5 py-4 text-center">QB Solves</th>
-                                                    <th className="px-5 py-4">Confidence</th>
+                                                    <th className="px-3 py-4">Chapter</th>
+                                                    <th className="px-3 py-4">Status</th>
+                                                    <th className="px-3 py-4 text-center">Theory</th>
+                                                    <th className="px-3 py-4 text-center">Textbook</th>
+                                                    <th className="px-3 py-4 text-center">CQ</th>
+                                                    <th className="px-3 py-4 text-center">Mistakes</th>
+                                                    <th className="px-3 py-4 text-center">Concept Bk</th>
+                                                    <th className="px-3 py-4 text-center">Slides</th>
+                                                    <th className="px-3 py-4 text-center text-blue-500">Eng MCQ</th>
+                                                    <th className="px-3 py-4 text-center text-blue-500">Var MCQ</th>
+                                                    <th className="px-3 py-4 text-center">QB Solves</th>
+                                                    <th className="px-3 py-4">Confidence</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
                                                 {filteredChapters.map(ch => (
                                                     <tr key={ch.id} className="hover:bg-indigo-50/50 dark:hover:bg-slate-800/50 transition-colors">
-                                                        <td className="px-5 py-4"><div className="font-bold text-slate-800 dark:text-slate-200 text-base">{ch.titleEn}</div><div className="text-[11px] font-medium text-slate-500">{ch.paper} • Ch {ch.chapterNo}</div></td>
-                                                        <td className="px-5 py-4">
+                                                        <td className="px-3 py-4"><div className="font-bold text-slate-800 dark:text-slate-200 text-base">{ch.titleEn}</div><div className="text-[11px] font-medium text-slate-500">{ch.paper} • Ch {ch.chapterNo}</div></td>
+                                                        <td className="px-3 py-4">
                                                             <select value={ch.status} onChange={(e) => updateChapter(ch.id, 'status', e.target.value)} className="text-sm font-bold bg-transparent dark:bg-slate-900 outline-none cursor-pointer text-indigo-700 dark:text-indigo-400 border border-transparent dark:border-slate-700 rounded p-1">
-                                                                <option value="Not Started">Not Started</option><option value="Started">Started</option><option value="Completed">Completed</option>
+                                                                <option value="Not Started">Not Started</option><option value="Started">Started</option><option value="Paused">Paused</option><option value="Completed">Completed</option>
                                                             </select>
                                                         </td>
-                                                        <td className="px-5 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.theory', !(ch.milestones?.theory))}>{ch.milestones?.theory ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
-                                                        <td className="px-5 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.textbook', !(ch.milestones?.textbook))}>{ch.milestones?.textbook ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
-                                                        <td className="px-5 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.written', !(ch.milestones?.written))}>{ch.milestones?.written ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
+                                                        <td className="px-3 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.theory', !(ch.milestones?.theory))}>{ch.milestones?.theory ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
+                                                        <td className="px-3 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.textbook', !(ch.milestones?.textbook))}>{ch.milestones?.textbook ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
+                                                        <td className="px-3 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.written', !(ch.milestones?.written))}>{ch.milestones?.written ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
                                                         
-                                                        <td className="px-5 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.mistakeCorrection', !(ch.milestones?.mistakeCorrection))}>{ch.milestones?.mistakeCorrection ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
-                                                        <td className="px-5 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.conceptBook', !(ch.milestones?.conceptBook))}>{ch.milestones?.conceptBook ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
-                                                        <td className="px-5 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.lectureSlide', !(ch.milestones?.lectureSlide))}>{ch.milestones?.lectureSlide ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
+                                                        <td className="px-3 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.mistakeCorrection', !(ch.milestones?.mistakeCorrection))}>{ch.milestones?.mistakeCorrection ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
+                                                        <td className="px-3 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.conceptBook', !(ch.milestones?.conceptBook))}>{ch.milestones?.conceptBook ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
+                                                        <td className="px-3 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.lectureSlide', !(ch.milestones?.lectureSlide))}>{ch.milestones?.lectureSlide ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
+                                                        
+                                                        <td className="px-3 py-4 text-center cursor-pointer text-lg bg-blue-50/30 dark:bg-blue-900/10" onClick={() => updateChapter(ch.id, 'milestones.engMcq', !(ch.milestones?.engMcq))}>{ch.milestones?.engMcq ? <i className="fa-solid fa-circle-check text-blue-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
+                                                        <td className="px-3 py-4 text-center cursor-pointer text-lg bg-blue-50/30 dark:bg-blue-900/10" onClick={() => updateChapter(ch.id, 'milestones.varsityMcq', !(ch.milestones?.varsityMcq))}>{ch.milestones?.varsityMcq ? <i className="fa-solid fa-circle-check text-blue-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
 
-                                                        <td className="px-5 py-4 text-center">
+                                                        <td className="px-3 py-4 text-center">
                                                             <div className="flex items-center justify-center gap-3 bg-slate-50 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
                                                                 <button onClick={() => updateChapter(ch.id, 'qbSolved', Math.max(0, ch.qbSolved - 1))} className="text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 w-6 h-6 flex items-center justify-center bg-white dark:bg-slate-800 rounded shadow-sm font-bold">-</button>
                                                                 <span className="font-bold w-4 text-indigo-900 dark:text-indigo-400">{ch.qbSolved}</span>
                                                                 <button onClick={() => updateChapter(ch.id, 'qbSolved', ch.qbSolved + 1)} className="text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 w-6 h-6 flex items-center justify-center bg-white dark:bg-slate-800 rounded shadow-sm font-bold">+</button>
                                                             </div>
                                                         </td>
-                                                        <td className="px-5 py-4"><select value={ch.confidence} onChange={(e) => updateChapter(ch.id, 'confidence', e.target.value)} className="text-sm font-bold bg-transparent dark:bg-slate-900 border border-transparent dark:border-slate-700 rounded p-1 outline-none cursor-pointer text-slate-700 dark:text-slate-300"><option value="Unrated">Unrated</option><option value="Low">Low</option><option value="Medium">Medium</option><option value="High">High</option></select></td>
+                                                        <td className="px-3 py-4"><select value={ch.confidence} onChange={(e) => updateChapter(ch.id, 'confidence', e.target.value)} className="text-sm font-bold bg-transparent dark:bg-slate-900 border border-transparent dark:border-slate-700 rounded p-1 outline-none cursor-pointer text-slate-700 dark:text-slate-300"><option value="Unrated">Unrated</option><option value="Low">Low</option><option value="Medium">Medium</option><option value="High">High</option></select></td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -803,6 +840,7 @@
                 switch(stat) {
                     case 'Completed': return 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-500/50';
                     case 'Started': return 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-500/50';
+                    case 'Paused': return 'text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-500/50';
                     default: return 'text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700';
                 }
             };
@@ -828,7 +866,7 @@
                         <div className="mt-5 flex items-center justify-between bg-slate-50 dark:bg-slate-950 p-2 rounded-xl border border-slate-100 dark:border-slate-800">
                             <span className="text-xs font-bold text-slate-500 ml-2">Status:</span>
                             <select value={status} onChange={(e) => onUpdate(id, 'status', e.target.value)} className={`text-xs font-bold px-3 py-1.5 rounded-lg border outline-none cursor-pointer appearance-none ${getStatusColor(status)}`}>
-                                <option value="Not Started">Not Started</option><option value="Started">Started</option><option value="Completed">Completed</option>
+                                <option value="Not Started">Not Started</option><option value="Started">Started</option><option value="Paused">Paused</option><option value="Completed">Completed</option>
                             </select>
                         </div>
                     </div>
@@ -844,6 +882,9 @@
                             <MilestoneCheckbox label="Mistake Correction" checked={safeMilestones.mistakeCorrection} onChange={() => toggleMilestone('mistakeCorrection')} />
                             <MilestoneCheckbox label="Concept Book" checked={safeMilestones.conceptBook} onChange={() => toggleMilestone('conceptBook')} />
                             <MilestoneCheckbox label="Lecture Slide" checked={safeMilestones.lectureSlide} onChange={() => toggleMilestone('lectureSlide')} />
+                            
+                            <MilestoneCheckbox label="Eng. MCQ" checked={safeMilestones.engMcq} onChange={() => toggleMilestone('engMcq')} />
+                            <MilestoneCheckbox label="Varsity MCQ" checked={safeMilestones.varsityMcq} onChange={() => toggleMilestone('varsityMcq')} />
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 mt-5">
