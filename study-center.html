@@ -51,10 +51,38 @@
         const { useState, useEffect, useRef } = React;
 
         // ==========================================
-        // 1. Google Web App URL (আপনার Apps Script URL এখানে দিন)
+        // 1. Google Web App URL
         // ==========================================
-        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxT19lu8gyBLNYShMebZlSXBwEtk2SptdQG3HTlOcJZs9zcbhUAZmgXsGJ-p02vVYJK/exec"; 
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxIwaWdKt6-XfSOjqSVfs731aIHQLHZuURXCYKpv0rYQ-RhVcLMe3HuQ4OmVgj4A-Yv/exec"; 
         
+        // --- CSV Helper Functions ---
+        function encodeCSV(val) {
+            if (val === null || val === undefined) return '';
+            let str = String(val);
+            if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        }
+
+        function parseCSV(str) {
+            const arr = [];
+            let quote = false;
+            for (let row = 0, col = 0, c = 0; c < str.length; c++) {
+                let cc = str[c], nc = str[c+1];
+                arr[row] = arr[row] || [];
+                arr[row][col] = arr[row][col] || '';
+                if (cc == '"' && quote && nc == '"') { arr[row][col] += cc; ++c; continue; }
+                if (cc == '"') { quote = !quote; continue; }
+                if (cc == ',' && !quote) { ++col; continue; }
+                if (cc == '\r' && nc == '\n' && !quote) { ++row; col = 0; ++c; continue; }
+                if (cc == '\n' && !quote) { ++row; col = 0; continue; }
+                if (cc == '\r' && !quote) { ++row; col = 0; continue; }
+                arr[row][col] += cc;
+            }
+            return arr;
+        }
+
         function App() {
             // Theme State
             const [theme, setTheme] = useState(localStorage.getItem('scc_theme') || 'light');
@@ -83,6 +111,7 @@
             const [showResetModal, setShowResetModal] = useState(false);
             
             const autoSaveTimerRef = useRef(null);
+            const fileInputRef = useRef(null);
 
             // ================== THEME EFFECT ==================
             useEffect(() => {
@@ -180,7 +209,7 @@
                     setPendingUpdates({}); 
                     await fetchWorkspaceData(); 
                 } catch (error) {
-                    alert("Reset Failed: " + error.message);
+                    console.error("Reset Failed: " + error.message);
                 }
                 setLoading(false);
             };
@@ -238,6 +267,128 @@
                     return { ...prev, [id]: currentChapterQueue };
                 });
                 setSyncStatus('unsaved');
+            };
+
+            // ================== CSV EXPORT & IMPORT ==================
+            const handleExportCSV = () => {
+                if(chapters.length === 0) return;
+                
+                const headers = ["id", "subject", "paper", "chapterNo", "titleEn", "titleBn", "status", 
+                                 "theory", "textbook", "written", "questionBank", "mistakeCorrection", "conceptBook", "lectureSlide", 
+                                 "qbSolved", "revisions", "writtenScore", "mcqScore", "confidence"];
+                
+                let csvContent = headers.join(',') + '\n';
+                
+                chapters.forEach(ch => {
+                    const safeMilestones = ch.milestones || {};
+                    const row = [
+                        ch.id, ch.subject, ch.paper, ch.chapterNo, ch.titleEn, ch.titleBn, ch.status,
+                        safeMilestones.theory || false, safeMilestones.textbook || false, safeMilestones.written || false, safeMilestones.questionBank || false,
+                        safeMilestones.mistakeCorrection || false, safeMilestones.conceptBook || false, safeMilestones.lectureSlide || false,
+                        ch.qbSolved || 0, ch.revisions || 0, ch.writtenScore || '', ch.mcqScore || '', ch.confidence || 'Unrated'
+                    ];
+                    csvContent += row.map(encodeCSV).join(',') + '\n';
+                });
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', `Study_Data_${userLoggedIn}_${new Date().toISOString().split('T')[0]}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            const handleImportCSV = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const text = e.target.result;
+                    const rows = parseCSV(text);
+                    if (rows.length < 2) return alert("File is empty or invalid.");
+
+                    const headers = rows[0];
+                    if (!headers.includes("id")) {
+                        return alert("Invalid CSV format. Missing 'id' column.");
+                    }
+
+                    let newPending = { ...pendingUpdates };
+                    let updatedChapters = JSON.parse(JSON.stringify(chapters)); // Deep clone for safe mutation
+
+                    for (let i = 1; i < rows.length; i++) {
+                        const row = rows[i];
+                        if (row.length < 2) continue; // skip empty rows
+
+                        const rowData = {};
+                        headers.forEach((h, idx) => rowData[h] = row[idx]);
+
+                        const chapterIndex = updatedChapters.findIndex(c => String(c.id) === String(rowData.id));
+                        if (chapterIndex === -1) continue; // Skip if id doesn't match existing data
+
+                        const existing = updatedChapters[chapterIndex];
+                        if(!existing.milestones) existing.milestones = {};
+                        
+                        let chUpdates = {};
+                        let hasChanges = false;
+
+                        // Helper to safely parse and detect changes
+                        const checkUpdate = (field, type = 'string') => {
+                            let val = rowData[field];
+                            if (val === undefined || val === null) return;
+
+                            if (type === 'boolean') val = (String(val).toLowerCase() === 'true');
+                            if (type === 'number') val = Number(val) || 0;
+
+                            const milestoneFields = ['theory', 'textbook', 'written', 'questionBank', 'mistakeCorrection', 'conceptBook', 'lectureSlide'];
+                            
+                            if (milestoneFields.includes(field)) {
+                                if (existing.milestones[field] !== val) {
+                                    existing.milestones[field] = val;
+                                    if (!chUpdates.milestones) chUpdates.milestones = {};
+                                    chUpdates.milestones[field] = val;
+                                    hasChanges = true;
+                                }
+                            } else {
+                                if (existing[field] !== val) {
+                                    existing[field] = val;
+                                    chUpdates[field] = val;
+                                    hasChanges = true;
+                                }
+                            }
+                        };
+
+                        checkUpdate('status', 'string');
+                        checkUpdate('theory', 'boolean');
+                        checkUpdate('textbook', 'boolean');
+                        checkUpdate('written', 'boolean');
+                        checkUpdate('questionBank', 'boolean');
+                        checkUpdate('mistakeCorrection', 'boolean');
+                        checkUpdate('conceptBook', 'boolean');
+                        checkUpdate('lectureSlide', 'boolean');
+                        checkUpdate('qbSolved', 'number');
+                        checkUpdate('revisions', 'number');
+                        checkUpdate('writtenScore', 'string');
+                        checkUpdate('mcqScore', 'string');
+                        checkUpdate('confidence', 'string');
+
+                        if (hasChanges) {
+                            newPending[existing.id] = { 
+                                ...(newPending[existing.id] || { rowNum: existing.rowNum }), 
+                                ...chUpdates 
+                            };
+                        }
+                    }
+
+                    setChapters(updatedChapters);
+                    setPendingUpdates(newPending);
+                    if (Object.keys(newPending).length > 0) setSyncStatus('unsaved');
+                    
+                    event.target.value = null; // reset input
+                };
+                reader.readAsText(file);
             };
 
             // ================== RENDER HELPERS ==================
@@ -383,8 +534,8 @@
 
                     <div className="p-4 md:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6 pt-8">
                         
-                        {/* 1. USER PROFILE & ONLINE OPERATOR RIBBON (Merged with Buttons and Sync Pill) */}
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white dark:bg-slate-900 px-5 py-3 rounded-2xl shadow-sm dark:shadow-lg border border-slate-200 dark:border-slate-800 transition-colors gap-4">
+                        {/* 1. USER PROFILE & ONLINE OPERATOR RIBBON */}
+                        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center bg-white dark:bg-slate-900 px-5 py-3 rounded-2xl shadow-sm dark:shadow-lg border border-slate-200 dark:border-slate-800 transition-colors gap-4">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-gradient-to-tr from-indigo-500 to-cyan-500 text-white rounded-full flex items-center justify-center font-bold text-lg shadow-inner">
                                     {userLoggedIn.charAt(0).toUpperCase()}
@@ -395,8 +546,8 @@
                                 </div>
                             </div>
                             
-                            <div className="flex flex-wrap gap-2 items-center w-full md:w-auto justify-end">
-                                {/* SYNC PILL (Inside the ribbon) */}
+                            <div className="flex flex-wrap gap-2 items-center w-full xl:w-auto justify-end">
+                                {/* SYNC PILL */}
                                 <div className="mr-1 md:mr-3">
                                     {syncStatus === 'unsaved' && (
                                         <button onClick={handleManualSave} className="flex items-center gap-2 bg-yellow-500 text-white px-3 md:px-4 py-1.5 md:py-2 rounded-xl shadow font-bold transition-transform hover:scale-105 active:scale-95 animate-pulse-ring text-xs md:text-sm">
@@ -414,6 +565,15 @@
                                         <button onClick={handleManualSave} className="flex items-center gap-2 bg-rose-500 text-white px-3 md:px-4 py-1.5 md:py-2 rounded-xl shadow font-bold text-xs md:text-sm"><i className="fa-solid fa-triangle-exclamation"></i> Retry</button>
                                     )}
                                 </div>
+
+                                {/* IMPORT/EXPORT */}
+                                <input type="file" ref={fileInputRef} onChange={handleImportCSV} accept=".csv" className="hidden" />
+                                <button onClick={() => fileInputRef.current.click()} className="w-9 h-9 md:h-10 md:w-auto md:px-4 flex items-center justify-center gap-2 text-sm font-bold bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition border border-slate-200 dark:border-slate-700">
+                                    <i className="fa-solid fa-file-import text-blue-500"></i> <span className="hidden md:inline">Import</span>
+                                </button>
+                                <button onClick={handleExportCSV} className="w-9 h-9 md:h-10 md:w-auto md:px-4 flex items-center justify-center gap-2 text-sm font-bold bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition border border-slate-200 dark:border-slate-700">
+                                    <i className="fa-solid fa-file-export text-emerald-500"></i> <span className="hidden md:inline">Export</span>
+                                </button>
 
                                 {/* THEME TOGGLE BUTTON */}
                                 <button onClick={toggleTheme} className="w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transition">
@@ -571,6 +731,9 @@
                                                     <th className="px-5 py-4 text-center">Theory</th>
                                                     <th className="px-5 py-4 text-center">Textbook</th>
                                                     <th className="px-5 py-4 text-center">CQ</th>
+                                                    <th className="px-5 py-4 text-center">Mistakes</th>
+                                                    <th className="px-5 py-4 text-center">Concept Bk</th>
+                                                    <th className="px-5 py-4 text-center">Slides</th>
                                                     <th className="px-5 py-4 text-center">QB Solves</th>
                                                     <th className="px-5 py-4">Confidence</th>
                                                 </tr>
@@ -584,9 +747,14 @@
                                                                 <option value="Not Started">Not Started</option><option value="Started">Started</option><option value="Completed">Completed</option>
                                                             </select>
                                                         </td>
-                                                        <td className="px-5 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.theory', !ch.milestones.theory)}>{ch.milestones.theory ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
-                                                        <td className="px-5 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.textbook', !ch.milestones.textbook)}>{ch.milestones.textbook ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
-                                                        <td className="px-5 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.written', !ch.milestones.written)}>{ch.milestones.written ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
+                                                        <td className="px-5 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.theory', !(ch.milestones?.theory))}>{ch.milestones?.theory ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
+                                                        <td className="px-5 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.textbook', !(ch.milestones?.textbook))}>{ch.milestones?.textbook ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
+                                                        <td className="px-5 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.written', !(ch.milestones?.written))}>{ch.milestones?.written ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
+                                                        
+                                                        <td className="px-5 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.mistakeCorrection', !(ch.milestones?.mistakeCorrection))}>{ch.milestones?.mistakeCorrection ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
+                                                        <td className="px-5 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.conceptBook', !(ch.milestones?.conceptBook))}>{ch.milestones?.conceptBook ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
+                                                        <td className="px-5 py-4 text-center cursor-pointer text-lg" onClick={() => updateChapter(ch.id, 'milestones.lectureSlide', !(ch.milestones?.lectureSlide))}>{ch.milestones?.lectureSlide ? <i className="fa-solid fa-circle-check text-indigo-600"></i> : <i className="fa-regular fa-circle text-slate-300 dark:text-slate-600"></i>}</td>
+
                                                         <td className="px-5 py-4 text-center">
                                                             <div className="flex items-center justify-center gap-3 bg-slate-50 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
                                                                 <button onClick={() => updateChapter(ch.id, 'qbSolved', Math.max(0, ch.qbSolved - 1))} className="text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 w-6 h-6 flex items-center justify-center bg-white dark:bg-slate-800 rounded shadow-sm font-bold">-</button>
@@ -619,7 +787,8 @@
             useEffect(() => { setLocalWritten(writtenScore || ''); }, [writtenScore]);
             useEffect(() => { setLocalMcq(mcqScore || ''); }, [mcqScore]);
 
-            const toggleMilestone = (field) => onUpdate(id, `milestones.${field}`, !milestones[field]);
+            const safeMilestones = milestones || {};
+            const toggleMilestone = (field) => onUpdate(id, `milestones.${field}`, !safeMilestones[field]);
 
             const getConfidenceStyle = (conf) => {
                 switch(conf) {
@@ -667,10 +836,14 @@
                     <div className="p-5 bg-slate-50/50 dark:bg-slate-800/20 flex-1">
                         <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Study Milestones</h4>
                         <div className="grid grid-cols-2 gap-2">
-                            <MilestoneCheckbox label="Theory" checked={milestones.theory} onChange={() => toggleMilestone('theory')} />
-                            <MilestoneCheckbox label="Textbook" checked={milestones.textbook} onChange={() => toggleMilestone('textbook')} />
-                            <MilestoneCheckbox label="Written" checked={milestones.written} onChange={() => toggleMilestone('written')} />
-                            <MilestoneCheckbox label="Question Bank" checked={milestones.questionBank} onChange={() => toggleMilestone('questionBank')} />
+                            <MilestoneCheckbox label="Theory" checked={safeMilestones.theory} onChange={() => toggleMilestone('theory')} />
+                            <MilestoneCheckbox label="Textbook" checked={safeMilestones.textbook} onChange={() => toggleMilestone('textbook')} />
+                            <MilestoneCheckbox label="Written" checked={safeMilestones.written} onChange={() => toggleMilestone('written')} />
+                            <MilestoneCheckbox label="Question Bank" checked={safeMilestones.questionBank} onChange={() => toggleMilestone('questionBank')} />
+                            
+                            <MilestoneCheckbox label="Mistake Correction" checked={safeMilestones.mistakeCorrection} onChange={() => toggleMilestone('mistakeCorrection')} />
+                            <MilestoneCheckbox label="Concept Book" checked={safeMilestones.conceptBook} onChange={() => toggleMilestone('conceptBook')} />
+                            <MilestoneCheckbox label="Lecture Slide" checked={safeMilestones.lectureSlide} onChange={() => toggleMilestone('lectureSlide')} />
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 mt-5">
